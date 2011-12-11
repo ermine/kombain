@@ -1,0 +1,5 @@
+true: debug
+
+<peg.ml>: use_camlp4, use_camlp4_full, camlp4of
+<peg.byte>: use_dynlink, use_camlp4, use_camlp4_full
+

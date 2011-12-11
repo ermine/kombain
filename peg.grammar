@@ -1,0 +1,133 @@
+%{
+
+open Peg_lib
+
+let make_declaration lexeme = Declaration lexeme
+let make_name lexeme = Name lexeme
+let make_action lexeme = Action lexeme
+let make_char lexeme =
+  match lexeme with
+    | "b" -> Char '\b'
+    | "n" -> Char '\n'
+    | "r" -> Char '\r'
+    | "t" -> Char '\t'
+    | "\\" -> Char '\\'
+    | c -> Char c.[0]
+
+let make_octet_char lexeme =
+  Char (Char.chr (int_of_string ("0o" ^ lexeme)))
+
+let make_any_char lexeme =
+  Char lexeme.[0]
+
+%}
+
+# Hierarchical syntax
+
+Grammar		<- Spacing Declaration? Definition+ EndOfFile
+
+Declaration	<- '%{' < ( !'%}' .)* : make_declaration > '%}' Spacing
+
+Definition	<- Identifier LEFTARROW Expression	{ (function
+							    | x :: Name name :: xs -> Rule (name, x) :: xs
+							    | state -> List.iter print_token state; assert false)
+							}
+
+Expression	<- Sequence (SLASH Sequence		{ (function
+							    | x2 :: x1 :: xs -> Alternate (x1, x2) :: xs
+							    | _ -> assert false)
+							}
+				)*
+
+Sequence	<- Prefix (Prefix			{ (function
+							    | x2 :: x1 :: xs -> Sequence (x1, x2) :: xs
+							    | _ -> assert false)
+							}
+			  )*
+
+Prefix		<- AND Suffix				{ (function
+							    | x :: xs -> PredicateNOT (PredicateNOT x) :: xs
+							    | _ -> assert false)
+							}
+		  / NOT Suffix				{ (function
+							    | x :: xs -> PredicateNOT x :: xs
+							    | _ -> assert false)
+							}
+		  / Suffix
+
+Suffix		<- Primary (QUESTION 			{ (function 
+							    | x :: xs -> Alternate (x, Epsilon) :: xs
+							    | _ -> assert false)
+							}
+			   / STAR 			{ (function
+							    | x :: xs -> Star x :: xs
+							    | _ -> assert false)
+							}
+			   / PLUS			{ (function
+							    | x :: xs -> Sequence (x, Star x) :: xs
+							    | _ -> assert false)
+							}
+			)?
+
+Primary		<- Identifier !LEFTARROW
+		 / OPEN Expression CLOSE
+		 / Literal 
+		 / Class 
+		 / DOT					{ (fun state -> Any :: state) }
+		 / Action
+		 / LEFTANGLE Expression COLON Tokenizer RIGHTANGLE { (function
+								       | Name name :: x :: xs -> Tokenizer (x, name) :: xs
+								       | _ -> assert false)
+								   }
+
+# Lexical syntax
+Identifier	<- < IdentStart IdentCont* : make_name > Spacing
+
+IdentStart	<- [a-zA-Z_]
+IdentCont	<- IdentStart / [0-9]
+Literal		<- ['] 						{ (fun state -> Literal [] :: state) }
+		       (!['] Char				{ (function
+								   | Char x :: Literal chars :: xs -> Literal (x :: chars) :: xs
+								   | state -> List.iter print_token state; assert false)
+								}
+			)* ['] Spacing
+		 / ["] 						{ (fun state -> Literal [] :: state) }
+		       (!["] Char				{ (function
+								  | Char x :: Literal chars :: xs -> Literal (x :: chars) :: xs
+								  | _ -> assert false)
+								}
+			)* ["] Spacing
+Class		<- '['						{ (fun state -> Class [] :: state) }
+		        (!']' Range				{ (function
+								    | Char x2 :: Char x1 :: Class rs :: xs -> Class ([x1;x2] :: rs) :: xs
+								    | Char x :: Class rs :: xs -> Class ([x] :: rs) :: xs
+								    | _ -> assert false)
+								}
+			)* ']' Spacing
+Range		<- Char '-' Char / Char
+Char		<- '\\' < [nrt'"\[\]\\] : make_char >
+		 / '\\' < [0-3][0-7][0-7] : make_octet_char >
+		 / '\\' < [0-7] [0-7]? : make_octet_char >
+		 /  !'\\' < . : make_any_char >
+LEFTARROW	<- '<-' Spacing
+SLASH		<- '/' Spacing
+AND		<- '&' Spacing
+NOT		<- '!' Spacing
+QUESTION	<- '?' Spacing
+STAR		<- '*' Spacing
+PLUS		<- '+' Spacing
+OPEN		<- '(' Spacing
+CLOSE		<- ')' Spacing
+DOT		<- '.' Spacing
+
+Spacing		<- (Space / Comment)*
+Comment		<- '#' (!EndOfLine .)* EndOfLine
+Space		<- ' ' / '\t' / EndOfLine
+EndOfLine	<- '\r\n' / '\r' / '\n'
+EndOfFile	<- !.
+
+Action		<- '{' < ( !'}' .)* : make_action > '}' Spacing
+Tokenizer	<-  < IdentStart [a-zA-Z_']* : make_name > Spacing
+LEFTANGLE	<- '<' Spacing
+RIGHTANGLE	<- '>' Spacing
+COLON		<- ':' Spacing
