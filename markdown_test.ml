@@ -1,0 +1,13 @@
+open Markdown_lib
+
+let () =
+  let file = Sys.argv.(1) in
+  let content = Peg_lib.read_file file in
+  let result = Markdown_parser.parse [] content in
+    match result with
+      | Peg_lib.Failed ->
+        Printf.printf "failed"
+      | Peg_lib.Parsed (state, rest) ->
+        Printf.printf "Parsed\n";
+        List.iter print_token state
+        

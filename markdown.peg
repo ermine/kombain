@@ -1,0 +1,54 @@
+%{
+open Peg_lib
+open Markdown_lib
+%}
+
+Document        <- (BlankLine* Block)* BlankLine* EndOfFile
+
+Block           <- Verbatim
+                 / HorizontalRule
+                 / Para
+                 / Plain
+
+Verbatim        <- (!BlankLine IndentedLine)+
+                   ((Indent? BlankLine)+ 
+                   (!BlankLine IndentedLine)+)* BlankLine*
+
+IndentedLine    <- Indent < AnyLine : add_verbatim >
+AnyLine         <- (!NewLine !EndOfFile .)* NewLine?
+
+HorizontalRule  <- NonIndentSpace (('*' Sp '*' Sp '*' (Sp '*')*)
+                                 / ('-' Sp '-' Sp '-' (Sp '-')*)
+                                 / ('_' Sp '_' Sp '_' (Sp '_')*))
+                   NewLine BlankLine+ # the + causes problems at the end of file
+                   { (fun state -> HorizontalRule :: state) }
+
+Para            <- Inline+ NewLine BlankLine+
+Plain           <- Inline+ BlankLine?
+
+BlankLine       <- Sp NewLine
+
+#Inline          <- Strong / Emph / Code / EndLine / Spaces / Link / Image 
+#                 / AutoLink / RawHtml / Str / Entity / Special 
+
+Strong           <- StrongStar / StrongUl
+
+StrongStar       <- twoStar !' ' !NewLine (!(SpNl twoStar) Inline)+ twoStar
+StrongUl         <- twoUl !' '  !NewLine (!(SpNl twoUl) Inline)+ twoUl !AlphaNum
+  
+
+
+
+# Lexical syntax
+
+EndOfFile       <- !.
+NewLine         <- '\n' / "\r\n" / '\r'
+Space           <- [ \t]
+Sp              <- Space*
+SpNl            <- Sp (NewLine Sp)?
+Indent         <- '\t' / "    "
+NonIndentSpace <- ("   " / "  " / " ")?
+twoStar        <- '**' !'**'
+twoUl          <- '__' !'__'
+
+AlphaNum       <- [a-zA-Z0-9]
