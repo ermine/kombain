@@ -15,6 +15,7 @@ type token =
   | Sequence of token * token
   | Rule of string * token
   | Declaration of string
+  | Pattern of string * token
 
 let rec print_token = function
   | Epsilon ->
@@ -51,6 +52,10 @@ let rec print_token = function
     Printf.printf "Rule %S " name; print_token token
   | Declaration str ->
     Printf.printf "Declaration %S\n" str
+  | Pattern (name, expr) ->
+    Printf.printf "Pattern %s [\n" name;
+    print_token expr;
+    Printf.printf "]\n"
 
 let make_declaration state _ _ lexeme = Declaration lexeme :: state
 

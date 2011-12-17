@@ -37,7 +37,13 @@ let print_token = function
     Printf.printf "Not implemented\n"
 
 
-let add_verbatim state lexeme =
+let add_verbatim state _ _ lexeme =
   match state with
     | Verbatim lines :: xs -> Verbatim (lines ^ lexeme) :: xs
     | state -> Verbatim lexeme :: state
+
+let make_entity state _ _ lexeme =
+  Entity lexeme :: state
+
+let make_text state _ _ lexeme =
+  Text lexeme :: state

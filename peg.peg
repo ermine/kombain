@@ -12,17 +12,18 @@ Grammar		<- Spacing Declaration? Definition+ EndOfFile
 
 Declaration  <- '%{' < ( !'%}' .)* : make_declaration > '%}' Spacing
 
-Definition   <- Identifier LEFTARROW Expression	{ (fun state _ ->
-                match state with
-							    | x :: Name name :: xs -> Rule (name, x) :: xs
-							    | state -> List.iter print_token state; assert false)
-							}
-             / !EndOfFile { (fun state input ->
+Definition   <- Identifier LEFTARROW Expression	
+                  { fun state _ ->
+                      match state with
+							          | x :: Name name :: xs -> Rule (name, x) :: xs
+							          | state -> List.iter print_token state; assert false
+							    }
+             / !EndOfFile { fun state input ->
                              Printf.printf "Invalid syntax at line %d col %d\n"
                                input.line input.col;
                              print_remaining input;
                              Pervasives.exit 1
-                           )}
+                           }
                                
 
 Expression	<- Sequence (SLASH Sequence		{ fun state input ->
@@ -69,12 +70,18 @@ Suffix		<- Primary (QUESTION 			{ (fun state _ ->
 							}
 			)?
 
-Primary		<- Identifier !LEFTARROW
-		       / OPEN Expression CLOSE
+Primary		<- Identifier '@' Spacing OPEN Expression CLOSE
+                         { fun state input ->
+                             match state with
+                               | x :: Name name :: xs -> Pattern (name, x) :: xs
+                               | _ -> assert false
+                         }
+           / Identifier !LEFTARROW
+		        / OPEN Expression CLOSE
            / Literal 
 		       / Class 
-		       / DOT					{ (fun state _ -> Any :: state) }
-		       / Action
+		       / DOT
+		       / Action         
 		       / LEFTANGLE Expression 
                        (COLON Tokenizer RIGHTANGLE 
                          { fun state _ ->
@@ -92,6 +99,7 @@ Primary		<- Identifier !LEFTARROW
                        )
 
 # Lexical syntax
+
 Identifier	<- < IdentStart IdentCont* : make_name > Spacing
 
 IdentStart	<- [a-zA-Z_]
@@ -119,7 +127,7 @@ Class		<- '['						{ (fun state _ -> Class [] :: state) }
 								}
 			)* ']' Spacing
 Range		     <- Char '-' Char / Char
-Char		     <- '\\' < [nrt'"\[\]\\] : make_char >
+Char		     <- '\\' < [nrt'"\[\]\\] : make_escaped_char >
 		          / '\\' < [0-3][0-7][0-7] : make_octet_char >
 		          / '\\' < [0-7] [0-7]? : make_octet_char >
 		          /  !'\\' < . : make_any_char >
@@ -132,8 +140,7 @@ STAR		     <- '*' Spacing
 PLUS		     <- '+' Spacing
 OPEN		     <- '(' Spacing
 CLOSE		     <- ')' Spacing
-DOT		       <- '.' Spacing
-
+DOT		       <- '.' Spacing     { (fun state _ -> Any :: state) }
 Spacing		   <- (Space / Comment)*
 Comment		   <- '#' (!EndOfLine .)* EndOfLine
 Space		     <- ' ' / '\t' / EndOfLine

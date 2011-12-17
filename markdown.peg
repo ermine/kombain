@@ -21,23 +21,34 @@ HorizontalRule  <- NonIndentSpace (('*' Sp '*' Sp '*' (Sp '*')*)
                                  / ('-' Sp '-' Sp '-' (Sp '-')*)
                                  / ('_' Sp '_' Sp '_' (Sp '_')*))
                    NewLine BlankLine+ # the + causes problems at the end of file
-                   { (fun state -> HorizontalRule :: state) }
+                   { (fun state _ -> HorizontalRule :: state) }
 
 Para            <- Inline+ NewLine BlankLine+
 Plain           <- Inline+ BlankLine?
 
 BlankLine       <- Sp NewLine
 
-#Inline          <- Strong / Emph / Code / EndLine / Spaces / Link / Image 
-#                 / AutoLink / RawHtml / Str / Entity / Special 
+Inline          <- Strong / Emph / Code / EndLine / Spaces 
+#                / Link / Image 
+#                / AutoLink / RawHtml 
+                 / Str / Entity / Special 
 
 Strong           <- StrongStar / StrongUl
 
 StrongStar       <- twoStar !' ' !NewLine (!(SpNl twoStar) Inline)+ twoStar
 StrongUl         <- twoUl !' '  !NewLine (!(SpNl twoUl) Inline)+ twoUl !AlphaNum
   
+Emph            <- EmphStar / EmphUl
+EmphStar        <- oneStar !' ' !NewLine 
+                          (Strong / (!(SpNl oneStar) Inline)+) oneStar
+EmphUl          <- oneUl !' ' !NewLine (Strong / !(SpNl oneUl) Inline)+ oneUl
+                    !AlphaNum 
 
+Code            <- Ticks@('`'+) ((!'`' .)+ / !Ticks '`'+)+ Ticks
 
+Str             <- NormalChar+
+
+Special         <- < SpecialChar : make_text >
 
 # Lexical syntax
 
@@ -46,9 +57,22 @@ NewLine         <- '\n' / "\r\n" / '\r'
 Space           <- [ \t]
 Sp              <- Space*
 SpNl            <- Sp (NewLine Sp)?
-Indent         <- '\t' / "    "
-NonIndentSpace <- ("   " / "  " / " ")?
-twoStar        <- '**' !'**'
-twoUl          <- '__' !'__'
+Indent          <- '\t' / "    "
+NonIndentSpace  <- ("   " / "  " / " ")?
+twoStar         <- '**' !'**'
+twoUl           <- '__' !'__'
+oneStar         <- '*' !'*'
+oneUl           <- '_' !'_'
 
-AlphaNum       <- [a-zA-Z0-9]
+AlphaNum        <- [a-zA-Z0-9]
+EscapedChar     <- '\\' .
+SpecialChar     <- [*_`&\[\]<!\\]
+NormalChar      <- EscapedChar / !(SpecialChar / ' ' / NewLine) .
+Spaces          <- ' '+
+EndLine         <- ' '? NewLine !BlankLine !EndOfFile
+Entity          <- '&'  < ('#' ('x' / 'X') hexDigit+ 
+                          / '#' Digit+ 
+                          / AlphaNum+) : make_entity >
+                   ';'
+Digit           <- [0-9]
+hexDigit        <- [0-9a-fA-F]

@@ -101,3 +101,26 @@ let test_f f state input =
     else
       Failed
   )
+let get_pattern cond state input =
+  let curr = input in
+    match cond state input with
+      | Parsed (state, input) ->
+        let lexeme = String.sub input.buf curr.pos (input.pos - curr.pos) in
+          Parsed ((lexeme, state), input)
+      | Failed -> Failed
+
+let match_pattern str state input =
+  Printf.printf "match_pattern\n";
+  let len = String.length str in
+  let rec aux_iter i input =
+    if i < len && not (end_of_file input) then
+      if str.[i] = input.buf.[input.pos] then
+        aux_iter (succ i) (incr_pos input)
+      else
+        Failed
+    else if i = len then
+      Parsed (state, input)
+    else
+      Failed
+  in
+    aux_iter 0 input
