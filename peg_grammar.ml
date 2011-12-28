@@ -1,5 +1,6 @@
 open Peg_input
 open Peg_lib
+open Printf
 
 exception Error of string
 
@@ -26,42 +27,42 @@ type token =
 
 let rec print_token = function
   | Epsilon ->
-    Printf.printf "Epsilon\n"
+    printf "Epsilon\n"
   | Name str ->
-    Printf.printf "Name %S\n" str
+    printf "Name %S\n" str
   | Literal chars ->
-    Printf.printf "Literal ";
-    List.iter (fun c -> Printf.printf "%C " c) chars;
-    Printf.printf "\n"
+    printf "Literal ";
+    List.iter (fun c -> printf "%C " c) chars;
+    printf "\n"
   | Class cs ->
-    Printf.printf "Class\n"
+    printf "Class\n"
   | Action ((line, col), str, expr) ->
-    Printf.printf "Action %d:%d %S\n" line col str
+    printf "Action %d:%d %S\n" line col str
   | Any ->
-    Printf.printf "Any\n"
+    printf "Any\n"
   | Tokenizer t ->
-    Printf.printf "Tokenizer ["; print_token t; Printf.printf "]\n"
+    printf "Tokenizer ["; print_token t; printf "]\n"
   | PredicateNOT token ->
-    Printf.printf "Predicate NOT "; print_token token
+    printf "Predicate NOT "; print_token token
   | Sequence (t1, t2) ->
-    Printf.printf "Sequence [\n";
+    printf "Sequence [\n";
     print_token t1;
     print_token t2;
-    Printf.printf "]\n"
+    printf "]\n"
   | Alternate (t1, t2) ->
-    Printf.printf "Alternate [\n";
-    Printf.printf "   "; print_token t1;
-    Printf.printf "   "; print_token t2;
+    printf "Alternate [\n";
+    printf "   "; print_token t1;
+    printf "   "; print_token t2;
   | Opt t ->
-    Printf.printf "Opt "; print_token t;
+    printf "Opt "; print_token t;
   | Plus t ->
-    Printf.printf "Plus "; print_token t;
+    printf "Plus "; print_token t;
   | Star token ->
-    Printf.printf "Star "; print_token token
+    printf "Star "; print_token token
   | Pattern (name, expr) ->
-    Printf.printf "Pattern %s [\n" name;
+    printf "Pattern %s [\n" name;
     print_token expr;
-    Printf.printf "]\n"
+    printf "]\n"
 
 let make_declaration {lexeme} = lexeme
 
@@ -91,7 +92,7 @@ let make_literal chars =
 let make_tokenizer expr = Tokenizer expr
 
 let print_remaining input =
-  Printf.printf "Remaining input:\n%S\n" 
+  printf "Remaining input:\n%S\n" 
     (String.sub input.buf input.pos (input.len - input.pos))
   
 let make_alternates (s1, s2) =
@@ -129,3 +130,6 @@ let make_prefix (f, s) =
 
 let make_definition ({lexeme}, expr) =
   (lexeme, expr)
+
+let unmatch_curly_bracket {start = (line, col)} =
+  raise (Error (sprintf "Unmatched '{' at line %d col %d" line col)) 

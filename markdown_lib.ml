@@ -21,10 +21,10 @@ type block =
   | Para of inline list
   | Plain of inline list
   | Heading of int * inline list
-  | Blockquote of block list
+  | BlockQuote of block list
   | BulletList of block list list
   | OrderedList of block list list
-  | HtmlBLock of string
+  | HTMLBlock of string
   | Verbatim of string
   | HorizontalRule
   | Reference of inline list * target
@@ -73,7 +73,7 @@ let rec print_token = function
     printf "Heading %d [\n" level;
     List.iter print_inline inlines;
     printf "]\n"    
-  | Blockquote blocks ->
+  | BlockQuote blocks ->
     printf "Blockquote [\n";
     List.iter print_token blocks;
     printf "]\n"
@@ -93,7 +93,7 @@ let rec print_token = function
       printf "]\n"
     ) blocks;
     printf "]\n"    
-  | HtmlBLock string ->
+  | HTMLBlock string ->
     printf "HtmlBlock %S\n" string
   | Verbatim string ->
     printf "Verbatim %S\n" string
@@ -138,3 +138,9 @@ let kmb_htmlBlockTag input =
         | Failed -> aux_test xs
   in
     aux_test blockTags
+
+let make_blackquote ls =
+  let txt = String.concat "" 
+    (List.concat (List.map (fun (l1, l2) -> l1 @ 
+      (List.map (fun {lexeme} -> lexeme) l2)) ls)) in
+    BlockQuote [Markdown txt] 

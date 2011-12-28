@@ -45,7 +45,6 @@ let get_lexeme cond input =
       | Parsed ((), input) ->
         let end_pos = input.pos in
         let lexeme = String.sub input.buf start.pos (end_pos - start.pos) in
-          Printf.printf "Token %d,%d %S\n" start.pos end_pos lexeme;
           Parsed ({start = (start.line, start.col);
                    stop = (input.line, input.col);
                    lexeme}, input)

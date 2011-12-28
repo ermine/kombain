@@ -13,10 +13,12 @@ Grammar		<- Spacing Declaration? Definition+ EndOfFile
 
 Declaration  <- '%{' < ( !'%}' .)* > '%}' Spacing       { make_declaration }
 
-Definition   <- Identifier (LEFTARROW Expression
-                           / !EndOfFile { fun () -> raise (Error "Invalid definition") }
-                          )
-                { make_definition }
+Definition   <- Identifier LEFTARROW Expression { make_definition }
+              / < . > { fun {start = (line, col)} ->
+                          raise (Error (sprintf 
+                            "Invalid rule definition at line %d col %d" 
+                            line col)) 
+                      }
 
 Expression	<- Sequence (SLASH Sequence)*       { make_alternates }
 
@@ -40,14 +42,10 @@ Suffix		<- Primary ( QUESTION 		    { fun _ r -> Opt r }
                                         }
 
 Primary		<- Identifier !LEFTARROW          { make_name }
-		       / < OPEN > Expression ( CLOSE { fun () -> false }
-                                 /       { fun () -> true})
-             { fun ({start = (line, col)}, (expr, err)) ->
-                 if err then
+		       / OPEN Expression CLOSE
+           / < OPEN > { fun {start = (line, col)} ->
                    raise (Error (sprintf "Unmatched '(' at line %d col %d"
                          line col))
-                 else
-                   expr
                  }
            / Literal 
 		       / Class 
@@ -71,6 +69,9 @@ IdentCont	  <- IdentStart / [0-9']
 Literal		  <- ['] (!['] Char)* ['] Spacing  { make_literal }
 		         / ["] (!["] Char)* ["] Spacing  { make_literal }
 Class		    <- '[' (!']' Range)* ']' Spacing   { make_class }
+             / < '[' > { fun {start = (line, col)} ->
+                          raise (Error (sprintf "Unmatched '[' at line %d col %d"
+                                        line col)) }
 Range		    <- Char '-' Char                   { fun (c1, c2) -> Range (c1, c2) }
              / Char                            { fun c -> Char c }
 Char		    <- '\\' < [nrt'"\[\]\\] >          { make_escaped_char }
@@ -95,7 +96,9 @@ EndOfLine	  <- '\r\n' / '\r' / '\n'
 EndOfFile	  <- !.
 
 Action		  <- '{' < (Action' / !'}' .)* >  '}' Spacing
+             / < '{' > { unmatch_curly_bracket }
 Action'     <- '{' (Action' / !'}' .)* '}'
+             / < '{' > { unmatch_curly_bracket }
 
 LEFTANGLE	  <- '<' Spacing
 RIGHTANGLE	<- '>' Spacing
