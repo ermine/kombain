@@ -4,330 +4,342 @@ open Peg_grammar
   
 let _ = Printexc.record_backtrace true
       
-let end_of_line state input =
-  peg_alternate [
-    peg_sequence [test_char '\r'; test_char '\n'];
-    test_char '\r';
-    test_char '\n';
-  ] state input
+let end_of_line input =
+  alt
+    (seq (test_char '\r') (test_char '\n'))
+    (alt
+       (test_char '\r')
+       (test_char '\n'))
+    input
 
-let space state input =
-  peg_alternate [
-    test_char ' ';
-    test_char '\t';
-    end_of_line
-  ] state input
+let space input =
+  alt 
+    (test_char ' ')
+    (alt
+       (test_char '\t')
+       end_of_line
+    ) input
 
-let comment state input =
-  peg_sequence [
-    test_char '#';
-    peg_star (peg_sequence [peg_not end_of_line; test_any]);
-    end_of_line
-  ]state input
+let comment input =
+  seq
+    (test_char '#')
+    (seq
+       (star (seq (predicate_not end_of_line) (test_any)))
+       end_of_line
+    ) input
     
-let spacing state input =
-  peg_star (peg_alternate [space; comment]) state input
+let spacing input =
+  star (alt space comment) input
 
-let begin_token state input =
-  peg_sequence [test_char '<'; spacing] state input
+let lparen input =
+  seq (test_char '(') spacing input
 
-let end_token state input =
-  peg_sequence [test_char '>';  spacing] state input
-
-let lparen state input =
-  peg_sequence [test_char '('; spacing] state input
-
-let rparen state input =
-  peg_sequence [test_char ')'; spacing] state input
+let rparen input =
+  seq (test_char ')') spacing input
     
-let dot_sign state input =
-  peg_sequence [test_char '.'; spacing] state input
+let dot_sign input =
+  seq (test_char '.') spacing input
 
-let dash_sign state input =
-  test_char '-' state input
+let dash_sign input =
+  test_char '-' input
 
-let quest_sign state input =
-  peg_sequence [test_char '?'; spacing] state input
+let at_sign input =
+  seq (test_char '@') spacing input
 
-let star_sign state input =
-  peg_sequence [test_char '*'; spacing] state input
+let quest_sign input =
+  seq (test_char '?') spacing input
 
-let plus_sign state input =
-  peg_sequence [test_char '+'; spacing] state input
+let star_sign input =
+  seq (test_char '*') spacing input
 
-let amp_sign state input =
-  peg_sequence [test_char '&'; spacing] state input
+let plus_sign input =
+  seq (test_char '+') spacing input
 
-let exlmn_sign state input =
-  peg_sequence [test_char '!'; spacing] state input
+let amp_sign input =
+  seq (test_char '&') spacing input
 
-let slash_siqn state input =
-  peg_sequence [test_char '/'; spacing] state input
+let exlmn_sign input =
+  seq (test_char '!') spacing input
 
-let identStart state input =
+let slash_siqn input =
+  seq (test_char '/') spacing input
+
+let identStart input =
   test_f (function
     | 'a' .. 'z'
     | 'A' .. 'Z'
     | '_' -> true
     | _ -> false
-  ) state input
+  ) input
 
-let identCont state input =
- peg_alternate [
-   identStart;
-   test_f (function
-     | '0' .. '9' -> true
-     | _ -> false
-   )] state input
+let identCont input =
+  alt
+    identStart
+    (test_f (function
+      | '0' .. '9' | '\'' -> true
+      | _ -> false
+     )) input
 
-let leftarrow state input =
-  peg_sequence [test_char '<'; test_char '-'; spacing] state input
+let leftarrow input =
+  Printf.printf "leftarrow";
+  seq (test_string ['<'; '-']) spacing input
+
+let leftangle input =
+  seq (test_char '<') spacing input
+
+let rightangle input =
+  seq (test_char '>') spacing input
     
-let identifier state input =
-  peg_sequence [
-    get_lexeme (peg_sequence [identStart; peg_star identCont]) make_name;
+let def_identifier input =
+  seq_l
+    (get_lexeme (seq identStart (star identCont)))
     spacing
-  ] state input
+    input
 
-let backslash_sign state input =
-  test_char '\\' state input
+let backslash_sign input =
+  test_char '\\' input
 
-let digit0_7 state input =
-  test_f (fun c -> List.mem c ['0'; '1'; '2'; '3'; '4'; '5'; '6'; '7'])
-    state input
+let digit0_7 input =
+  test_f (fun c -> List.mem c ['0'; '1'; '2'; '3'; '4'; '5'; '6'; '7']) input
     
-let char_sign state input =
-  peg_alternate [
-    peg_sequence [
-      backslash_sign;
-      get_lexeme (test_f (fun c -> List.mem c
-        ['b'; 'n'; 'r'; 't'; ' '; '\''; '"'; '['; ']'; '\\'])) make_escaped_char
-    ];
-    peg_sequence [
-      backslash_sign;
-      get_lexeme (peg_sequence [
-        test_f (fun c -> List.mem c ['0'; '1'; '2'; '3']);
-        digit0_7;
-        digit0_7
-      ]) make_octet_char
-    ];
-    peg_sequence [
-      backslash_sign;
-      get_lexeme (peg_sequence [
-        digit0_7;
-        peg_alternate [digit0_7; peg_stub]
-      ]) make_octet_char
-    ];
-    peg_sequence [
-      backslash_sign;
-      dash_sign;
-      peg_action (fun state _ -> Char '-' :: state)
-    ];
-    peg_sequence [
-      peg_not backslash_sign;
-      get_lexeme test_any make_char
-    ]
-  ] state input
+let char_sign input =
+  alt
+    (transform
+       (seq_r
+          backslash_sign
+          (get_lexeme (test_f (fun c -> List.mem c
+            ['b'; 'n'; 'r'; 't'; ' '; '\''; '"'; '['; ']'; '\\']))))
+       make_escaped_char)
+    (alt
+       (transform
+          (seq
+             backslash_sign
+             (get_lexeme (seq 
+                            (test_f (fun c -> List.mem c ['0'; '1'; '2'; '3']))
+                            (seq digit0_7 digit0_7))))
+          make_octet_char)
+       (alt
+          (transform
+             (seq
+                backslash_sign
+                (get_lexeme (seq 
+                               digit0_7
+                               (alt digit0_7 peg_stub))))
+             make_octet_char)
+          (alt
+             (transform
+                (seq_n
+                   backslash_sign
+                   (test_char '-'))
+                (fun () -> '-'))
+             (transform
+                (seq_r
+                   (predicate_not backslash_sign)
+                   (get_lexeme test_any))
+                make_char)
+          )
+       )
+    ) input
 
-let range state input =
-  peg_alternate [
-    peg_sequence [
-      char_sign;
-      dash_sign;
-      char_sign;
-    ];
-    char_sign;
-  ] state input
+let range input =
+  alt 
+    (fun input ->
+      match char_sign input with
+        | Parsed (c1, input) ->
+          seq
+            dash_sign
+            (fun input ->
+              match char_sign input with
+                | Parsed (c2, input) ->
+                  Parsed (Range (c1, c2), input)
+                | Failed as failed -> failed
+            ) input
+        | Failed as failed -> failed
+    )
+    (fun input ->
+      match char_sign input with
+        | Parsed (c, input) -> Parsed (Char c, input)
+        | Failed as failed -> failed
+    )
+    input
     
-let class_char state input =
-  peg_sequence [
-    test_char '[';
-    peg_action (fun state _ -> Class [] :: state);
-    peg_star (peg_sequence [
-      peg_not (test_char ']');
-      range;
-      peg_action (fun state _ ->
-        match state with
-          | Char x2 :: Char x1 :: Class rs :: xs -> Class ([x1;x2] :: rs) :: xs
-          | Char x1 :: Class rs :: xs -> Class ([x1] :: rs) :: xs
-          | _ -> assert false)]);
-    test_char ']';
-    spacing
-  ] state input
+let class_char input =
+  transform
+    (seq_r
+       (test_char '[')
+       (seq_l (star_accu (seq_r
+                            (predicate_not (test_char ']'))
+                            range))
+          (seq_n (test_char ']') spacing)
+       ))
+    make_class
+    input
 
-let literal state input =
-  peg_alternate [
-    peg_sequence [
-      test_char '\'';
-      peg_action (fun state _ -> Literal [] :: state);
-      peg_star (peg_sequence [
-        peg_not (test_char '\'');
-        char_sign;
-        peg_action (fun state _ ->
-          match state with
-            | Char x :: Literal cs :: xs -> Literal (x :: cs) :: xs
-            | _ -> assert false)]);
-      test_char '\'';
-      spacing
-    ];
-    peg_sequence [
-      test_char '"';
-      peg_action (fun state _ -> Literal [] :: state);
-      peg_star (peg_sequence [
-        peg_not (test_char '"');
-        char_sign;
-        peg_action (fun state _ ->
-          match state with
-            | Char x :: Literal cs :: xs -> Literal (x :: cs) :: xs
-            | _ -> assert false)]);
-      test_char '"';
-      spacing
-    ]
-  ] state input
+let def_literal input =
+  transform
+    (alt
+       (seq_r
+          (test_char '\'')
+          (seq_l
+             (star_accu (seq (predicate_not (test_char '\'')) char_sign))
+             (seq_n (test_char '\'') spacing)))
+       (seq_r
+          (test_char '"')
+          (seq_l
+             (star_accu (seq_r (predicate_not (test_char '"')) char_sign))
+             (seq_n (test_char '"') spacing))))
+    make_literal
+    input
 
-let action state input =
-  peg_sequence [
-    test_char '{';
-    get_lexeme (peg_star (peg_sequence [peg_not (test_char '}'); test_any]))
-      make_action;
-    test_char '}';
-    spacing;
-  ] state input
+let rec def_action input =
+  seq (test_char '{')
+    (seq_l (get_lexeme
+              (star (alt action'
+                       (seq_n (predicate_not (test_char '}')) test_any))))
+       (seq_n (test_char '}') spacing))
+    input
+and action' input =
+  seq_n (test_char '{')
+    (seq_n (star (alt action' 
+                    (seq_n (predicate_not (test_char '}')) test_any)))
+       (seq_n (test_char '}') spacing))
+    input
     
-let tokenizer state input =
-  peg_sequence [
-    get_lexeme (peg_sequence [
-      identStart; peg_star (peg_alternate [identCont;
-                                           test_char '\'']
-      )]) make_name;
-    spacing
-  ] state input    
-
-let rec primary state input =
-  peg_alternate [
-    peg_sequence [
-      identifier; peg_not leftarrow];
-    peg_sequence [lparen; expression; rparen];
-    literal;
-    class_char;
-    peg_sequence [dot_sign; peg_action (fun state _ -> Any :: state)];
-    action;
-    peg_sequence [
-      begin_token; expression; test_char ':'; spacing; tokenizer; end_token;
-      peg_action (fun state _ ->
-        match state with
-          | Name x :: expr :: xs -> Tokenizer (expr, x) :: xs
-          | _ -> assert false)
-    ]
-  ] state input
     
-and suffix state input =
-  peg_sequence [
-    primary;
-    peg_alternate [
-      peg_alternate [
-        peg_sequence [
-          quest_sign;
-          peg_action (fun state _ ->
-            match state with
-              | x :: xs -> Alternate (x, Epsilon) :: xs
-              | _ -> assert false)];
-        peg_sequence [
-          plus_sign;
-          peg_action (fun state _ ->
-            match state with
-              | x :: xs -> Sequence (x, Star x) :: xs
-              | _ ->  assert false)];
-        peg_sequence [
-          star_sign;
-          peg_action (fun state _ ->
-            match state with
-              | x :: xs -> Star x :: xs
-              | _ -> assert false)];
-      ];
-      peg_stub]
-  ] state input
+let rec def_primary input =
+  alt
+    (transform (seq_l def_identifier (predicate_not leftarrow)) make_name)
+    (alt
+       (seq_r lparen (seq_l def_expression rparen))
+       (alt
+          def_literal
+          (alt
+             class_char
+             (alt
+                (seq dot_sign (return Any))
+                (seq 
+                   leftangle
+                   (fun input ->
+                     match def_expression input with
+                       | Parsed (r, input) ->
+                         seq
+                           rightangle
+                           (return (Tokenizer r))
+                           input
+                       | Failed as failed -> failed
+                   )
+                )
+             )
+          )
+       )
+    ) input
+    
+and def_suffix input =
+  transform
+    (seq_b def_primary
+       (opt_accu
+          (alt (transform quest_sign (fun _  r -> Opt r))
+             (alt (transform plus_sign (fun _ r -> Plus r))
+                (transform star_sign (fun _ r -> Star r))
+             ))))
+    (fun (r, f) -> match f with
+      | None -> r
+      | Some f -> f r)
+    input
 
-and prefix state input =
-  peg_alternate [
-    peg_sequence [amp_sign; suffix;
-                  peg_action (fun state _ ->
-                    match state with
-                      | x::xs -> PredicateNOT (PredicateNOT x) :: xs
-                      | _ -> assert false)];
-    peg_sequence [exlmn_sign; suffix;
-                  peg_action (fun state _ ->
-                    match state with
-                      | x::xs -> PredicateNOT x :: xs
-                      | _ -> assert false)];
-    suffix
-  ] state input
+and def_prefix input =
+  transform
+    (seq_b
+       (opt_accu
+          (alt
+             (transform amp_sign make_predicate_and)
+             (transform exlmn_sign make_predicate_not)
+          ))
+       def_suffix)
+    make_prefix
+    input
   
-and sequence state input =
-  peg_sequence [
-    prefix;
-    peg_star (peg_sequence [
-      prefix;
-      peg_action (fun state _ ->
-        match state with
-          | x2 :: x1 :: xs -> Sequence (x1, x2) :: xs
-          | _ -> assert false)])
-  ] state input
+and def_tokenizer input =
+  transform (seq_r leftangle (seq_l def_suffix rightangle))
+    (fun expr -> Tokenizer expr)
+    input
+
+and def_pattern input =
+  transform (seq_b def_identifier (seq_r at_sign def_suffix))
+    make_pattern
+    input
+  
+and def_item input =
+  alt def_pattern
+    def_prefix
+    input
+  
+and def_sequence input =
+  transform
+    (seq_b (star_accu def_item)
+       (opt_accu def_action))
+    make_sequence
+    input
+    
                 
-and expression state input =
-  peg_sequence [
-    sequence;
-    peg_star (peg_sequence [
-      slash_siqn; sequence; peg_action (fun state _ ->
-        match state with
-          | x2 :: x1 :: xs -> Alternate (x1, x2) :: xs
-          | _ -> assert false)])
-  ] state input
+and def_expression input =
+  transform
+    (seq_b
+       def_sequence
+       (star_accu (seq_r slash_siqn def_sequence)))
+    make_alternates
+    input
 
-let definition state input =
-  peg_sequence [
-    identifier;
-    leftarrow;
-    expression;
-    peg_action (fun state _ ->
-      match state with
-        | expr :: (Name name) :: xs -> Rule (name, expr) :: xs
-        | _ -> assert false)
-  ] state input
+          
+let def_definition input =
+  seq_b
+    (transform def_identifier (fun {lexeme} -> lexeme))
+    (seq_r leftarrow def_expression) input
 
-let declaration state input =
-  peg_alternate [
-    peg_sequence [
-      test_string ['%';'{'];
-      get_lexeme (peg_star (peg_sequence [peg_not (test_string ['%'; '}']);
-                                          test_any]))
-        make_declaration;
-      test_string ['%';'}'];
-      spacing
-    ];
-    peg_stub
-  ] state input
+let dcl_start input =
+  seq (test_string ['%';'{']) spacing input
 
-let grammar state input =
-  peg_sequence [
-    spacing;
-    declaration;
-    definition;
-    peg_star definition;
-    peg_not test_any
-  ] state input
+let dcl_end input =
+  seq (test_string ['%';'}']) spacing input
 
-let parse_file state file =
+let def_declaration input =
+  opt_accu
+    (transform
+       (seq dcl_start
+          (seq_l
+             (get_lexeme (star (seq
+                                  (predicate_not (test_string ['%'; '}']))
+                                  (test_any))))
+             dcl_end
+          ))
+       make_declaration)
+    input
+
+let grammar input =
+  seq_r
+    spacing
+    (seq_b def_declaration
+       (seq_l
+          (star_accu def_definition)
+          (predicate_not test_any))
+    ) input
+    
+
+             
+
+let parse_file file =
   let content = read_file file in
   let input = make_input content in
-  let result = grammar state input in
+  let result = grammar input in
     match result with
       | Failed -> failwith "Unparsed"
-      | Parsed (state, input) -> (state, input)
+      | Parsed ((dcl, rules), input) -> (dcl, rules), input
   
 
 let _ =
   let grammar_file = Sys.argv.(1) in
   let output_file = Sys.argv.(2) in
-  let rules, rest = parse_file [] grammar_file in
-    Peg_generator.generate rules output_file
+  let (declaration, rules), rest = parse_file grammar_file in
+    List.iter (fun (name, rule) ->
+      Printf.printf "Rule %s " name; print_token rule) rules;
+    Peg_generator.generate declaration rules output_file

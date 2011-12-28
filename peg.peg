@@ -3,6 +3,7 @@
 open Peg_input
 open Peg_lib
 open Peg_grammar
+open Printf
 
 %}
 
@@ -10,145 +11,92 @@ open Peg_grammar
 
 Grammar		<- Spacing Declaration? Definition+ EndOfFile
 
-Declaration  <- '%{' < ( !'%}' .)* : make_declaration > '%}' Spacing
+Declaration  <- '%{' < ( !'%}' .)* > '%}' Spacing       { make_declaration }
 
-Definition   <- Identifier LEFTARROW Expression	
-                  { fun state _ ->
-                      match state with
-							          | x :: Name name :: xs -> Rule (name, x) :: xs
-							          | state -> List.iter print_token state; assert false
-							    }
-             / !EndOfFile { fun state input ->
-                             Printf.printf "Invalid syntax at line %d col %d\n"
-                               input.line input.col;
-                             print_remaining input;
-                             Pervasives.exit 1
-                           }
-                               
+Definition   <- Identifier (LEFTARROW Expression
+                           / !EndOfFile { fun () -> raise (Error "Invalid definition") }
+                          )
+                { make_definition }
 
-Expression	<- Sequence (SLASH Sequence		{ fun state input ->
-                                              match state with
-							                                  | x2 :: x1 :: xs -> 
-                                                    Alternate (x1, x2) :: xs
-							                                  | _ -> assert false
-							                            }
-				                )*
+Expression	<- Sequence (SLASH Sequence)*       { make_alternates }
 
-Sequence	<- Prefix (Prefix			{ fun state _ ->
-                match state with
-							    | x2 :: x1 :: xs -> Sequence (x1, x2) :: xs
-							    | _ -> assert false
-							}
-			         )*
+Sequence	<- Item* Action?                      { make_sequence }
 
-Prefix		<- AND Suffix				{ (fun state _ ->
-                match state with
-							    | x :: xs -> PredicateNOT (PredicateNOT x) :: xs
-							    | _ -> assert false)
-							}
-		       / NOT Suffix				{ (fun state _ ->
-                match state with
-							    | x :: xs -> PredicateNOT x :: xs
-							    | _ -> assert false)
-							}
-		       / Suffix
+Item      <- Identifier AT Suffix               { make_pattern }
+           / Prefix
 
-Suffix		<- Primary (QUESTION 			{ (fun state _ ->
-                match state with
-							    | x :: xs -> Alternate (x, Epsilon) :: xs
-							    | _ -> assert false)
-							}
-			   / STAR 			{ (fun state _ ->
-                match state with
-							    | x :: xs -> Star x :: xs
-							    | _ -> assert false)
-							}
-			   / PLUS			{ (fun state _ ->
-                match state with
-							    | x :: xs -> Sequence (x, Star x) :: xs
-							    | _ -> assert false)
-							}
-			)?
+Prefix		<- (AND                               { make_predicate_and }
+             / NOT                              { make_predicate_not }
+             )? Suffix                          { make_prefix }
+                                                
 
-Primary		<- Identifier '@' Spacing OPEN Expression CLOSE
-                         { fun state input ->
-                             match state with
-                               | x :: Name name :: xs -> Pattern (name, x) :: xs
-                               | _ -> assert false
-                         }
-           / Identifier !LEFTARROW
-		        / OPEN Expression CLOSE
+Suffix		<- Primary ( QUESTION 		    { fun _ r -> Opt r }
+			               / STAR 			      { fun _ r -> Star r }
+			               / PLUS			        { fun _ r -> Plus r }
+			               )?                 { fun (p, f) ->
+                                            match f with
+                                              | None -> p
+                                              | Some f -> f p
+                                        }
+
+Primary		<- Identifier !LEFTARROW          { make_name }
+		       / < OPEN > Expression ( CLOSE { fun () -> false }
+                                 /       { fun () -> true})
+             { fun ({start = (line, col)}, (expr, err)) ->
+                 if err then
+                   raise (Error (sprintf "Unmatched '(' at line %d col %d"
+                         line col))
+                 else
+                   expr
+                 }
            / Literal 
 		       / Class 
 		       / DOT
-		       / Action         
-		       / LEFTANGLE Expression 
-                       (COLON Tokenizer RIGHTANGLE 
-                         { fun state _ ->
-                             match state with
-							 	              | Name name :: x :: xs -> Tokenizer (x, name) :: xs
-							 	              | _ -> assert false
-							 	        }
-                       
-                       / !EndOfFile 
-                         { fun _ input -> 
-                             Printf.printf "Invalid Syntax at line %d col %d\n" 
-                               input.line input.col;
-                             Pervasives.exit 1               
-                         }
-                       )
+		       / < LEFTANGLE > Expression (RIGHTANGLE   { fun () -> false }
+                                      /             { fun () -> true })
+             { fun ({start = (line, col)}, (expr, err)) ->
+                if err then
+                  raise (Error (sprintf "Unmatchec '<' at line %d col %d" 
+                                line col))
+                else
+                  make_tokenizer expr
+            }
 
 # Lexical syntax
 
-Identifier	<- < IdentStart IdentCont* : make_name > Spacing
+Identifier	<- < IdentStart IdentCont* > Spacing
 
 IdentStart	<- [a-zA-Z_]
-IdentCont	<- IdentStart / [0-9]
-Literal		<- ['] 						{ (fun state _ -> Literal [] :: state) }
-		       (!['] Char				{ (fun state _ ->
-                 match state with
-								   | Char x :: Literal chars :: xs -> Literal (x :: chars) :: xs
-								   | state -> List.iter print_token state; assert false)
-								}
-			)* ['] Spacing
-		 / ["] 						{ (fun state _ -> Literal [] :: state) }
-		       (!["] Char				{ (fun state _ ->
-                match state with
-								  | Char x :: Literal chars :: xs -> Literal (x :: chars) :: xs
-								  | _ -> assert false)
-								}
-			)* ["] Spacing
-Class		<- '['						{ (fun state _ -> Class [] :: state) }
-		        (!']' Range				{ (fun state _ ->
-                  match state with
-								    | Char x2 :: Char x1 :: Class rs :: xs -> Class ([x1;x2] :: rs) :: xs
-								    | Char x :: Class rs :: xs -> Class ([x] :: rs) :: xs
-								    | _ -> assert false)
-								}
-			)* ']' Spacing
-Range		     <- Char '-' Char / Char
-Char		     <- '\\' < [nrt'"\[\]\\] : make_escaped_char >
-		          / '\\' < [0-3][0-7][0-7] : make_octet_char >
-		          / '\\' < [0-7] [0-7]? : make_octet_char >
-		          /  !'\\' < . : make_any_char >
-LEFTARROW	   <- '<-' Spacing
-SLASH		     <- '/' Spacing
-AND		       <- '&' Spacing
-NOT		       <- '!' Spacing
-QUESTION	   <- '?' Spacing
-STAR		     <- '*' Spacing
-PLUS		     <- '+' Spacing
-OPEN		     <- '(' Spacing
-CLOSE		     <- ')' Spacing
-DOT		       <- '.' Spacing     { (fun state _ -> Any :: state) }
-Spacing		   <- (Space / Comment)*
-Comment		   <- '#' (!EndOfLine .)* EndOfLine
-Space		     <- ' ' / '\t' / EndOfLine
-EndOfLine	   <- '\r\n' / '\r' / '\n'
-EndOfFile	   <- !.
+IdentCont	  <- IdentStart / [0-9']
+Literal		  <- ['] (!['] Char)* ['] Spacing  { make_literal }
+		         / ["] (!["] Char)* ["] Spacing  { make_literal }
+Class		    <- '[' (!']' Range)* ']' Spacing   { make_class }
+Range		    <- Char '-' Char                   { fun (c1, c2) -> Range (c1, c2) }
+             / Char                            { fun c -> Char c }
+Char		    <- '\\' < [nrt'"\[\]\\] >          { make_escaped_char }
+		         / '\\' < [0-3][0-7][0-7] >        { make_octet_char }
+		         / '\\' < [0-7] [0-7]? >           { make_octet_char }
+             / '\\' '-'                        { fun () -> '-' }
+		         /  !'\\' < .  >                   { make_char }
+LEFTARROW	  <- '<-' Spacing
+SLASH		    <- '/' Spacing
+AND		      <- '&' Spacing
+NOT		      <- '!' Spacing
+QUESTION	  <- '?' Spacing
+STAR		    <- '*' Spacing
+PLUS		    <- '+' Spacing
+OPEN		    <- '(' Spacing
+CLOSE		    <- ')' Spacing
+DOT		      <- '.' Spacing                          { fun () -> Any }
+Spacing		  <- (Space / Comment)*
+Comment		  <- '#' (!EndOfLine .)* EndOfLine
+Space		    <- ' ' / '\t' / EndOfLine
+EndOfLine	  <- '\r\n' / '\r' / '\n'
+EndOfFile	  <- !.
 
-Action		   <- '{' < ( !'}' .)* : make_action > '}' Spacing
-Tokenizer	   <-  < IdentStart [a-zA-Z_']* : make_name > Spacing
-LEFTANGLE	    <- '<' Spacing
-RIGHTANGLE	  <- '>' Spacing
-COLON		      <- ':' Spacing
+Action		  <- '{' < (Action' / !'}' .)* >  '}' Spacing
+Action'     <- '{' (Action' / !'}' .)* '}'
+
+LEFTANGLE	  <- '<' Spacing
+RIGHTANGLE	<- '>' Spacing
+AT          <- '@' Spacing

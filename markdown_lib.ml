@@ -1,5 +1,7 @@
+open Printf
+
 type target =
-    Src of string * string
+    Src of string * string option
   | Ref of inline list * string
   | Nothing
 
@@ -28,13 +30,82 @@ type block =
   | Reference of inline list * target
   | Markdown of string
       
-let print_token = function
-  | Verbatim v ->
-    Printf.printf "Verbatim %s\n" v
+let rec print_inline = function
+  | Text str ->
+    printf "Text %S\n" str
+  | Entity str ->
+    printf "Entity %S\n" str
+  | Space ->
+    printf "Space\n"
+  | LineBreak ->
+    printf "LineBreak\n"
+  | Emph inlines ->
+    printf "Emb [\n";
+    List.iter print_inline inlines;
+    printf "]\n"
+  | Strong inlines ->
+    printf "Strong [\n";
+    List.iter print_inline inlines;
+    printf "]\n"    
+  | Code str ->
+    printf "Code %S\n" str
+  | Link (inlines, target) ->
+    printf "Link [\n";
+    List.iter print_inline inlines;
+    printf "]\n"      
+  | Image (inlines, target) ->
+    printf "Image [\n";
+    List.iter print_inline inlines;
+    printf "]\n"      
+  | Html str ->
+    printf "HTML %S\n" str
+
+let rec print_token = function
+  | Para inlines ->
+    printf "Para [\n";
+    List.iter print_inline inlines;
+    printf "]\n"
+  | Plain inlines ->
+    printf "Plain [\n";
+    List.iter print_inline inlines;
+    printf "]\n"
+  | Heading (level, inlines) ->
+    printf "Heading %d [\n" level;
+    List.iter print_inline inlines;
+    printf "]\n"    
+  | Blockquote blocks ->
+    printf "Blockquote [\n";
+    List.iter print_token blocks;
+    printf "]\n"
+  | BulletList blocks ->
+    printf "BulletList [\n";
+    List.iter (fun block ->
+      printf "* [\n";
+      List.iter print_token block;
+      printf "]\n"
+    ) blocks;
+    printf "]\n" 
+  | OrderedList blocks ->
+    printf "OrderedList [\n";
+    List.iter (fun block ->
+      printf "* [\n";
+      List.iter print_token block;
+      printf "]\n"
+    ) blocks;
+    printf "]\n"    
+  | HtmlBLock string ->
+    printf "HtmlBlock %S\n" string
+  | Verbatim string ->
+    printf "Verbatim %S\n" string
   | HorizontalRule ->
-    Printf.printf "HorizontalRule\n"
-  | _ ->
-    Printf.printf "Not implemented\n"
+    printf "HorizontalRule\n"
+  | Reference (inlines, target) ->
+    printf "Reference [\n";
+    List.iter print_inline inlines;
+    printf "]\n"
+  | Markdown string ->
+    printf "Markdown %S\n" string
+      
 
 
 let add_verbatim state _ _ lexeme =
@@ -47,3 +118,23 @@ let make_entity state _ _ lexeme =
 
 let make_text state _ _ lexeme =
   Text lexeme :: state
+
+let blockTags =
+  List.fold_left (fun acc x -> x :: String.uppercase x :: acc) [] [
+    "address"; "blockquote"; "center"; "dir"; "div"; "dl"; "fieldset"; "form";
+    "h1"; "h2"; "h3"; "h4"; "h5"; "h6"; "hr"; "isindex"; "menu"; "noframes";
+    "noscript"; "ol"; "p"; "pre"; "table"; "ul"; "dd"; "dt"; "frameset"; "li";
+    "tbody"; "td"; "tfoot"; "th"; "thead"; "tr"; "script"
+  ]
+    
+open Peg_lib
+
+let kmb_htmlBlockTag input =
+  let rec aux_test = function
+    | [] -> Failed
+    | x :: xs ->
+      match match_pattern x input with
+        | Parsed _ as ok -> ok
+        | Failed -> aux_test xs
+  in
+    aux_test blockTags

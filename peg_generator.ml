@@ -9,130 +9,167 @@ module Caml =
 
 open Syntax
     
-let rule_prefix = "peg_grammar_"
+let rule_prefix = "kmb_"
 
-let rec make_pattern _loc name expr exprs =
-  <:expr<
-    let $lid:"var_tmp_" ^ name$ =
-      get_pattern $make_rule_expr _loc expr$ state input in
-      match $lid:"var_tmp_" ^ name$ with
-        | Parsed ((x, state), input) ->
-          let $lid:rule_prefix ^ name$ =
-            match_pattern x in
-            peg_sequence $exprs$ state input
-        | Failed -> Failed
-    >>
-        
-and make_rule_expr _loc = function
+let rec should_export rules names = function
+  | Epsilon -> false
+  | Name name -> (
+    if List.mem name names then
+      false
+    else
+      try should_export rules (name :: names)
+            (List.assoc name rules) with Not_found ->
+        Printf.printf "Warning: Not found rule: %s\n" name;
+        false
+  )
+  | Action _ -> true
+  | Tokenizer _ -> true
+  | Pattern (_, expr) -> should_export rules names expr
+  | PredicateNOT _ -> false
+  | PredicateAND _ -> false
+  | Opt expr -> should_export rules names expr
+  | Plus expr -> should_export rules names expr
+  | Star expr -> should_export rules names expr
+  | Literal _ -> false
+  | Class _ -> false
+  | Any -> false
+  | Alternate (e1, e2) -> should_export rules names e1
+  | Sequence (e1, e2) ->
+    should_export rules names e1 || should_export rules names e2
+
+let rec make_rule_expr _loc rules names = function
   | Epsilon ->
     <:expr< peg_stub >>
+
   | Name name ->
     <:expr< $lid:rule_prefix ^ name$ >>
 
-  | Sequence (t1, t2) ->
-    let rec flat _loc acc = function
-      | Sequence (x1, x2) -> (
-        match x2 with
-          | Pattern (name, expr) ->
-            flat _loc <:expr< fun state input ->
-              $make_pattern _loc name expr acc$ state input >> x1
-          | _ ->
-            flat _loc (<:expr< $make_rule_expr _loc x2$ :: $acc$ >>) x1
-      )
-      | Pattern (name, expr) ->
-        <:expr< fun state input -> $make_pattern _loc name expr acc$ >>
-      | x ->
-        <:expr< peg_sequence ($make_rule_expr _loc x$ :: $acc$) >>
+  | Sequence (Pattern (name, expr), xs) ->
+    let rules = (name, Epsilon) :: rules in
+      <:expr< fun input ->
+        match get_pattern $make_rule_expr _loc rules names expr$ input with
+          | Parsed (r, input) ->
+            let $lid:rule_prefix ^ name$ = match_pattern r in
+              $make_rule_expr _loc rules names xs$ input
+          | Failed as failed -> failed
+            >>
+            
+  | Sequence (x1, x2) ->
+    let export_left = should_export rules names x1
+    and export_right = should_export rules names x2 in
+    let seq =
+      match export_left, export_right with
+        | true, true -> "seq_b"
+        | true, false -> "seq_l"
+        | false, true -> "seq_r"
+        | false, false -> "seq_n"
     in
-      flat _loc (<:expr< [$make_rule_expr _loc t2$] >>) t1
-        
-  | Alternate (t1, t2) ->
-    let rec flat _loc acc = function
-      | Alternate (x1, x2) ->
-        flat _loc (<:expr< $make_rule_expr _loc x2$ :: $acc$ >>) x1
-      | x ->
-        <:expr< $make_rule_expr _loc x$ :: $acc$ >>
-    in
-    let exprs = flat _loc (<:expr< [$make_rule_expr _loc t2$] >>) t1 in
-      <:expr< peg_alternate $exprs$ >>
+      <:expr< $lid:seq$ 
+        $make_rule_expr _loc rules names x1$
+        $make_rule_expr _loc rules names x2$ >>
 
-  | Tokenizer (t, fn) ->
-    <:expr< get_lexeme $make_rule_expr _loc t$ $lid:fn$ >>
+  | Alternate (x1, x2) ->
+    <:expr< alt $make_rule_expr _loc rules names x1$
+      $make_rule_expr _loc rules names x2$ >>
+
+  | Tokenizer t ->
+    <:expr< get_lexeme $make_rule_expr _loc rules names t$ >>
  
-  | Action  ((line, col), code) ->
-    let e =
+  | Action  ((line, col), code, expr) ->
+    let code_expr =
       try Caml.AntiquotSyntax.parse_expr Loc.ghost code
       with exn ->
         Printf.printf "Bad action %d:%d %S\n" line col code;
         Printf.printf "Exception: %s\n" (Printexc.to_string exn);
         Pervasives.exit 1
     in
-      <:expr< peg_action $e$ >>
-
+      <:expr< transform
+        $make_rule_expr _loc rules names expr$
+        $code_expr$
+      >>
+        
+  | Opt t ->
+    let export = should_export rules names t in
+      if export then
+        <:expr< opt_accu $make_rule_expr _loc rules names t$ >>
+      else
+        <:expr< opt $make_rule_expr _loc rules names t$ >>
+      
   | Star t ->
-    <:expr< peg_star $make_rule_expr _loc t$ >>
+    let export = should_export rules names t in
+      if export then
+        <:expr< star_accu $make_rule_expr _loc rules names t$ >>
+      else
+        <:expr< star $make_rule_expr _loc rules names t$ >>
 
+  | Plus t ->
+    let export = should_export rules names t in
+      if export then
+        <:expr< plus_accu $make_rule_expr _loc rules names t$ >>
+      else
+        <:expr< plus $make_rule_expr _loc rules names t$ >>
+      
   | PredicateNOT t ->
-    <:expr< peg_not $make_rule_expr _loc t$ >>
+    <:expr< predicate_not $make_rule_expr _loc rules names t$ >>
 
+  | PredicateAND t ->
+    <:expr< predicate_and $make_rule_expr _loc rules names t$ >>
+      
   | Any ->
     <:expr< test_any >>
-
+      
   | Literal chars -> (
     match chars with
       | [] -> <:expr< >>
       | [x] -> <:expr< test_char $`chr:x$ >>
       | _ ->
-        let exprs = List.map (fun c -> <:expr< $`chr:c$ >>) (List.rev chars) in
-          <:expr< test_string [$Ast.exSem_of_list exprs$] >>
+          let str = String.create (List.length chars) in
+            ignore (List.fold_left (fun i c -> str.[i] <- c; succ i) 0 chars);
+            <:expr< match_pattern $str:str$ >>
   )
-
   | Class classes ->
     let make_expr = function
-      | [x1; x2] ->
+      | Range (x1, x2) ->
         <:expr< c >= $`int:Char.code x1$ && c <= $`int:Char.code x2$ >>
-      | [x] -> <:expr< c = $`int:Char.code x$ >>
-      | _ -> assert false
+      | Char x -> <:expr< c = $`int:Char.code x$ >>
     in
     let exprs =
       List.fold_left (fun acc s ->
         <:expr< $make_expr s$ || $acc$ >>
       ) <:expr< $make_expr (List.hd classes)$ >> (List.tl classes) in
       <:expr< test_f (fun c -> let c = Char.code c in $exprs$) >>
-
-   | _ -> <:expr< () >>
-
-let generate rules output_file =
-  let start_rule, declaration =
-    match List.rev rules with
-      | Declaration str :: Rule (name, _) :: _ -> name, str
-      | Rule (name, _) :: _ -> name, ""
-      | other -> assert false in
+        
+  | t ->
+    Printf.printf "Lack\n\n";
+    print_token t;
+    assert false
     
+let generate declaration rules output_file =
+  let (start_rule, _) = List.hd rules in
   let _loc = Loc.ghost in
-  let bindings = List.fold_right (fun token acc ->
-    match token with
-      | Rule (name, expr) ->
-        <:binding< $lid:rule_prefix ^ name$ state input =
+  let bindings = List.map (fun (name, expr) ->
+    Printf.printf "Generating for rule %s\n" name;
+    <:binding< $lid:rule_prefix ^ name$ input =
       Printf.printf "Trying %s... " $str:name$;
-        match $make_rule_expr _loc expr$ state input with
-          | Failed as result -> Printf.printf "Failed %s\n" $str:name$; result
-          | Parsed _ as result -> Printf.printf "Success %s\n" $str:name$; result
-        >> :: acc
-      | Declaration _ -> acc
-      | _ -> assert false
-  ) rules [] in
+    match $make_rule_expr _loc  rules [name] expr$ input with
+        | Failed as result -> Printf.printf "Failed %s\n" $str:name$; result
+        | Parsed _ as result -> Printf.printf "Success %s\n" $str:name$; result
+          >>
+  ) rules in
 
     Caml.print_implem ~output_file
     <:str_item<
-      $if declaration <> "" then
-       Caml.parse_implem _loc (Stream.of_string declaration)
-     else
-       <:str_item< >>
+      $match declaration with
+        | Some dcl ->
+          Caml.parse_implem _loc (Stream.of_string dcl)
+        | None ->
+          <:str_item< >>
       $
-      let parse state string =
+      let parse string =
         let rec $Ast.biAnd_of_list bindings$ in
         let input = Peg_input.make_input string in
-        let result = $lid:rule_prefix ^ start_rule$ state input in
+        let result = $lid:rule_prefix ^ start_rule$ input in
           result
-          >>
+          >>;
+
+          Printf.printf "\n\nDone!\n"

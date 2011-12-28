@@ -4,83 +4,89 @@ type 'a result =
   | Parsed of 'a * input
   | Failed
 
-let peg_not cond state input =
-  match cond state input with
+let return r input = Parsed (r, input)      
+
+let transform r f input =
+  match r input  with
+    | Parsed (v, input) -> Parsed (f v, input)
+    | Failed as failed -> failed
+
+let predicate_not cond input =
+  match cond input with
     | Parsed _ -> Failed
-    | Failed -> Parsed (state, input)
+    | Failed -> Parsed ((), input)
 
-let peg_stub state input = Parsed (state, input)
+let predicate_and cond input =
+  match cond input with
+    | Parsed _ -> Parsed ((), input)
+    | Failed as failed -> failed
+
+let peg_stub input = Parsed ((), input)
   
-let rec peg_sequence fs state input =
-  match fs with
-    | [] -> Parsed (state, input)
-    | f :: fs ->
-      match f state input with
-        | Parsed (state, input) -> peg_sequence fs state input
-        | Failed -> Failed
+let opt cond input =
+  match cond input with
+    | Parsed (_, input) -> Parsed ((), input)
+    | Failed -> Parsed ((), input)
 
-let rec peg_alternate alts state input =
-  match alts with
-    | [] -> Failed
-    | x :: xs ->
-      match x state input with
-        | Parsed _ as ok -> ok
-        | Failed -> peg_alternate xs state input
+let opt_accu cond input =
+  match cond input with
+    | Parsed (r, input) -> Parsed (Some r, input)
+    | Failed -> Parsed (None, input)
 
-let rec peg_star cond state input =
-  match cond state input with
-    | Parsed (state, input) -> peg_star cond state input
-    | Failed -> Parsed (state, input)
+type lexeme = {
+  start : int * int;
+  stop : int * int;
+  lexeme : string
+}
 
-let peg_action fn state input =
-  Parsed ((fn state input), input)
-  
-let get_lexeme cond fn state input =
+let get_lexeme cond input =
   let start = input in
-    match cond state input with
-      | Parsed (state, input) ->
+    match cond input with
+      | Parsed ((), input) ->
         let end_pos = input.pos in
         let lexeme = String.sub input.buf start.pos (end_pos - start.pos) in
           Printf.printf "Token %d,%d %S\n" start.pos end_pos lexeme;
-          Parsed (fn state (start.line, start.col) (input.line, input.col)
-                    lexeme, input)
+          Parsed ({start = (start.line, start.col);
+                   stop = (input.line, input.col);
+                   lexeme}, input)
       | Failed -> Failed
       
 let end_of_file input =
   input.pos = input.len
 
-let test_any state input =
+let test_any input =
   if end_of_file input then
     Failed
   else (
     Printf.printf "test_any %d:%d %C\n" input.line input.col
       input.buf.[input.pos];
-    Parsed (state, incr_pos input)
+    Parsed ((), incr_pos input)
   )
 
 (*
-let test cond state input =
+let test cond input =
   if cond input then
     Parsed state
   else
     Failed
 *)
 
-let test_char c state input =
+let test_char c input =
   if end_of_file input then
     Failed
   else (
     Printf.printf "test_char %d:%d %C %C\n" input.line input.col
       input.buf.[input.pos] c;
     if input.buf.[input.pos] = c then
-      Parsed (state, incr_pos input)
+      Parsed ((), incr_pos input)
     else
       Failed
   )
 
-let test_string cs state input =
+let test_string cs input =
+  Printf.printf "test_string\n";
   let rec aux_test pos = function
-    | [] -> Parsed (state, {input with pos = pos})
+    | [] -> Parsed ((), {input with pos = pos})
     | c :: cs ->
       if end_of_file input then
         Failed
@@ -91,25 +97,25 @@ let test_string cs state input =
   in
     aux_test input.pos cs
     
-let test_f f state input =
+let test_f f input =
   if end_of_file input then
     Failed
   else (
     Printf.printf "test_f %d:%d %C\n" input.line input.col input.buf.[input.pos];
     if f input.buf.[input.pos] then
-      Parsed (state, incr_pos input)
+      Parsed ((), incr_pos input)
     else
       Failed
   )
-let get_pattern cond state input =
+let get_pattern cond input =
   let curr = input in
-    match cond state input with
-      | Parsed (state, input) ->
+    match cond input with
+      | Parsed ((), input) ->
         let lexeme = String.sub input.buf curr.pos (input.pos - curr.pos) in
-          Parsed ((lexeme, state), input)
+          Parsed (lexeme, input)
       | Failed -> Failed
 
-let match_pattern str state input =
+let match_pattern str input =
   Printf.printf "match_pattern\n";
   let len = String.length str in
   let rec aux_iter i input =
@@ -119,8 +125,73 @@ let match_pattern str state input =
       else
         Failed
     else if i = len then
-      Parsed (state, input)
+      Parsed ((), input)
     else
       Failed
   in
     aux_iter 0 input
+
+let seq a b input =
+  match a input with
+    | Failed as failed -> failed
+    | Parsed ((), input) -> b input
+          
+
+let seq_l a b input =
+  match a input with
+    | Failed as failed -> failed
+    | Parsed (r, input) ->
+      match b input with
+        | Parsed ((), input) -> return r input
+        | Failed as failed -> failed
+
+let seq_r a b input =
+  match a input with
+    | Parsed (_, input) -> b input
+    | Failed as failed -> failed
+
+let seq_n a b input =
+    match a input with
+      | Failed as failed -> failed
+      | Parsed (_, input) ->
+        match b input with
+          | Parsed (_, input) -> Parsed ((), input)
+          | Failed as failed -> failed
+
+let seq_b a b input =
+  match a input with
+    | Failed as failed -> failed
+    | Parsed (r1, input) ->
+      match b input with
+        | Parsed (r2, input) -> Parsed ((r1, r2), input)
+        | Failed as failed -> failed
+
+let alt a b input =
+  match a input with
+    | Parsed _ as ok -> ok
+    | Failed -> b input
+
+
+let rec star cond input =
+  match cond input with
+    | Parsed (_, input) -> star cond input
+    | Failed -> Parsed ((), input)
+
+let star_accu cond input =
+  let rec aux_star acc input =
+    match cond input with
+      | Parsed (r, input) -> aux_star (r :: acc) input
+      | Failed -> Parsed (List.rev acc, input)
+  in
+    aux_star [] input
+
+let plus cond input =
+  match cond input with
+    | Parsed (_, input) -> star cond input
+    | Failed as failed -> failed
+
+let plus_accu cond input =
+  transform (seq_b cond (star_accu cond))
+    (fun (r1, r2) -> r1 :: r2)
+    input
+
