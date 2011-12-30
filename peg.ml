@@ -117,7 +117,7 @@ let char_sign input =
              (get_lexeme (seq 
                             (test_f (fun c -> List.mem c ['0'; '1'; '2'; '3']))
                             (seq digit0_7 digit0_7))))
-          make_octet_char)
+          make_dec_char)
        (alt
           (transform
              (seq
@@ -125,7 +125,7 @@ let char_sign input =
                 (get_lexeme (seq 
                                digit0_7
                                (alt digit0_7 peg_stub))))
-             make_octet_char)
+             make_dec_char)
           (alt
              (transform
                 (seq_n

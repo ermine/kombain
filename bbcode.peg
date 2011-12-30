@@ -1,0 +1,95 @@
+## BBCode PEG Grammar based on https://github.com/AlainODea/mod_experimental
+
+%{
+open Peg_lib
+%}
+
+Doc <- StartList (Block / Inline)*
+
+Inline <- Style / Url / UrlTag / Img / .
+Block <- Quote / Code / List / Table
+
+Style <- Strong / Em / Underline / Strike / Color / Size
+
+Strong <- StrongStart (!StrongEnd Inline)+ StrongEnd
+StrongStart <- "[b]" / "[B]"
+StrongEnd <- "[/b]" / "[/B]"
+
+Em <- EmStart (!EmEnd Inline)+ EmEnd
+EmStart <- "[i]" / "[I]"
+EmEnd <- "[/i]" / "[/I]"
+
+Underline <- UnderlineStart (!UnderlineEnd Inline)+ UnderlineEnd
+UnderlineStart <- "[u]" / "[U]"
+UnderlineEnd <- "[/u]" / "[/U]"
+
+Strike <- StrikeStart (!StrikeEnd Inline)+ StrikeEnd
+StrikeStart <- "[s]" / "[S]"
+StrikeEnd <- "[/s]" / "[/S]"
+
+Url <- UrlStart (!UrlEnd Inline)+ UrlEnd
+UrlStart <- "[" ("u" / "U") ("r" / "R") ("l" / "L") "]"
+UrlEnd <- "[/" ("u" / "U") ("r" / "R") ("l" / "L") "]"
+
+UrlTag <- UrlTagStart (!"]" .)* "]" (!UrlEnd Inline)* UrlEnd
+UrlTagStart <- "[" ("u" / "U") ("r" / "R") ("l" / "L") "="
+
+Color <- ColorStart ColorValue "]" (!ColorEnd Inline)* ColorEnd
+ColorStart <- "[" ("c" / "C") ("o" / "O") ("l" / "L")  ("o" / "O") ("r" / "R") "="
+ColorEnd <- "[/" ("c" / "C") ("o" / "O") ("l" / "L")  ("o" / "O") ("r" / "R") "]"
+ColorValue <- "#"? (!"]" .)+
+
+Size <- SizeStart SizeValue "]" (!SizeEnd Inline)* SizeEnd
+SizeStart <- "[" ("s" / "S") ("i" / "I") ("z" / "Z")  ("e" / "E") "="
+SizeEnd <- "[/" ("s" / "S") ("i" / "I") ("z" / "Z")  ("e" / "E") "]"
+SizeValue <- (!"]" .)+
+
+Img <- ImgStart (!ImgEnd Inline)+ ImgEnd
+ImgStart <- "[" ("i" / "I") ("m" / "M") ("g" / "G") "]"
+ImgEnd <- "[/" ("i" / "I") ("m" / "M") ("g" / "G") "]"
+
+Code <- CodeStart (!CodeEnd .)+ CodeEnd
+CodeStart <- "[" ("c" / "C") ("o" / "O") ("d" / "D") ("e" / "E") "]"
+CodeEnd <- "[/" ("c" / "C") ("o" / "O") ("d" / "D") ("e" / "E") "]"
+
+Quote <- QuoteStart (!QuoteEnd Inline)+ QuoteEnd
+QuoteStart <- "[" ("q" / "Q") ("u" / "U") ("o" / "O") ("t" / "T") ("e" / "E") "]"
+QuoteEnd <- "[/" ("q" / "Q") ("u" / "U") ("o" / "O") ("t" / "T") ("e" / "E") "]"
+
+List <- ListStart ListItems ListEnd
+ListStart <- "[" ("l" / "L") ("i" / "I") ("s" / "S") ("t" / "T") "]"
+ListEnd <- "[/" ("l" / "L") ("i" / "I") ("s" / "S") ("t" / "T") "]"
+ListItems <- (ListItem / NewLine)*
+ListItem <- "[*]" (!("[*]" / ListEnd) Inline)*
+
+Table <- TableStart TableRows TableEnd
+TableStart <- "[" ("t" / "T") ("a" / "A") ("b" / "B") ("l" / "L") ("e" / "E") "]"
+TableEnd <- "[/" ("t" / "T") ("a" / "A") ("b" / "B") ("l" / "L") ("e" / "E") "]"
+
+TableRows <- TableHeader? TableRow*
+
+TableHeader <- TableHeaderStart (!TableHeaderEnd TableRow)* TableHeaderEnd
+TableHeaderStart <- "[" ("t" / "T") ("h" / "H") ("e" / "E") ("a" / "A") ("d" / "D") "]"
+TableHeaderEnd <- "[/" ("t" / "T") ("h" / "H") ("e" / "E") ("a" / "A") ("d" / "D") "]"
+
+TableRow <- TableRowStart TableRowCells TableRowEnd
+TableRowStart <- "[" ("t" / "T") ("r" / "R") "]"
+TableRowEnd <- "[/" ("t" / "T") ("r" / "R") "]"
+
+TableRowCells <- TableCell*
+TableCell <- TableCellRegular / TableCellHeader
+
+TableCellRegular <- TableCellRegularStart (!TableCellRegularEnd TableCellContents)* TableCellRegularEnd
+TableCellRegularStart <- "[" ("t" / "T") ("d" / "D") "]"
+TableCellRegularEnd <- "[/" ("t" / "T") ("d" / "D") "]"
+
+TableCellHeader <- TableCellHeaderStart (!TableCellHeaderEnd TableCellContents)* TableCellHeaderEnd
+TableCellHeaderStart <- "[" ("t" / "T") ("h" / "H") "]"
+TableCellHeaderEnd <- "[/" ("t" / "T") ("h" / "H") "]"
+
+TableCellContents <- Quote / List / Code / Inline / .
+
+NewLine <- "\n" / "\r" "\n"?
+
+StartList <- &.
+

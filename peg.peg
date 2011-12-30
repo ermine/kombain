@@ -75,8 +75,9 @@ Class		    <- '[' (!']' Range)* ']' Spacing   { make_class }
 Range		    <- Char '-' Char                   { fun (c1, c2) -> Range (c1, c2) }
              / Char                            { fun c -> Char c }
 Char		    <- '\\' < [nrt'"\[\]\\] >          { make_escaped_char }
-		         / '\\' < [0-3][0-7][0-7] >        { make_octet_char }
-		         / '\\' < [0-7] [0-7]? >           { make_octet_char }
+		         / '\\' < [0-3][0-7][0-7] >        { make_dec_char }
+		         / '\\' < [0-7] [0-7]? >           { make_dec_char }
+             / '\\x' < [0-9a-fA-F] [0-0a-fA-F] > { make_hex_char }
              / '\\' '-'                        { fun () -> '-' }
 		         /  !'\\' < .  >                   { make_char }
 LEFTARROW	  <- '<-' Spacing

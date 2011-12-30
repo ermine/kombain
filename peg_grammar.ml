@@ -44,6 +44,8 @@ let rec print_token = function
     printf "Tokenizer ["; print_token t; printf "]\n"
   | PredicateNOT token ->
     printf "Predicate NOT "; print_token token
+  | PredicateAND token ->
+    printf "Predicate AND "; print_token token    
   | Sequence (t1, t2) ->
     printf "Sequence [\n";
     print_token t1;
@@ -80,8 +82,11 @@ let make_escaped_char {lexeme} =
     | "\\" -> '\\'
     | c -> c.[0] 
       
-let make_octet_char {lexeme} =
-  (Char.chr (int_of_string ("0o" ^ lexeme)))
+let make_dec_char {lexeme} =
+  Char.chr (int_of_string lexeme)
+
+let make_hex_char {lexeme} =
+  Char.chr (int_of_string ("0x" ^ lexeme))
 
 let make_any_char _ _ lexeme =
   lexeme.[0]
