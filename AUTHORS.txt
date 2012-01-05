@@ -1,0 +1,5 @@
+(* OASIS_START *)
+(* DO NOT EDIT (digest: 8ad0ce341fb3b763eb0ae3ff21a713c5) *)
+Authors of kombain
+Anastasia Gornostaeva
+(* OASIS_STOP *)

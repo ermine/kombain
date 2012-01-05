@@ -1,6 +1,19 @@
 true: debug
 
-<peg_generator.ml>: use_camlp4, use_camlp4_full, camlp4of
-<peg.byte>: use_dynlink, use_camlp4_full
-<genparser.byte>: use_dynlink, use_camlp4_full
+<kmb/kmb_generator.ml>: use_camlp4_full, camlp4of
+<kmb/kombain_init.{byte,native}>: use_camlp4_full
+<kmb/kombain.{byte,native}>: use_camlp4_full
 
+# OASIS_START
+# DO NOT EDIT (digest: 41c2e2500c1f9a9287038eeb9782f696)
+# Library kmb
+"kmb": include
+# Executable kombain
+"kmb/kombain.byte": pkg_dynlink
+# Executable markdown_test
+"markdown/markdown_test.byte": use_kmb
+<markdown/*.ml{,i}>: use_kmb
+# Executable kombain_init
+"kmb/kombain_init.byte": pkg_dynlink
+<kmb/*.ml{,i}>: pkg_dynlink
+# OASIS_STOP

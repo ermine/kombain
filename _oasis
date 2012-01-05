@@ -1,0 +1,29 @@
+OASISFormat: 0.2
+Name:        kombain
+Version:     0.1
+Synopsis:    PEG based parsers with useful grammars
+Authors:     Anastasia Gornostaeva
+License:     BSD3
+LicenseFile: LICENCE
+Plugins:     DevFiles (0.2), META (0.2), StdFiles (0.2)
+BuildTools:  ocamlbuild
+
+Executable kombain_init
+  Path:		kmb
+  MainIs:	kombain_init.ml
+  BuildDepends:	dynlink
+
+Executable kombain
+  Path:		kmb
+  MainIs:	kombain.ml
+  BuildDepends:	dynlink
+
+Library kmb
+  Path:		kmb
+  Modules:	Kmb_input, Kmb_lib
+
+Executable markdown_test
+  Path:		markdown
+  MainIs:	markdown_test.ml
+  BuildDepends:	kmb
+
