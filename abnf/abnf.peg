@@ -1,24 +1,27 @@
 # ABNF
 # RFC 2234 ABNF for Syntax Specifications
+%{
+open Kmb_lib
+%}
 
-rulelist        <- 1*( rule / (*c_wsp c_nl) )
+rulelist        <- ( rule / c_wsp* c_nl )+
 
 rule            <- rulename defined_as elements c_nl
-                 ; continues if next line starts
-                 ;  with white space
+                 # continues if next line starts
+                 #  with white space
 
 rulename        <- ALPHA (ALPHA / DIGIT / "-")*
 
 defined_as      <- c_wsp* ("=" / "=/") c_wsp*
-                 ; basic rules definition and
-                 ;  incremental alternatives
+                 # basic rules definition and
+                 #  incremental alternatives
 
 elements        <- alternation c_wsp*
 
-c_wsp           <- WSP / (c_nl WSP)
+c_wsp           <- WSP / c_nl WSP
 
 c_nl            <- comment / CRLF
-                 ; comment or newline
+                 # comment or newline
 
 comment         <- ";" (WSP / VCHAR)* CRLF
 
@@ -29,7 +32,7 @@ concatenation   <- repetition (c_wsp+ repetition)*
 
 repetition      <- repeat? element
 
-repeat          <- DIGIT+ / (DIGIT* "*" DIGIT*)
+repeat          <- DIGIT+ / DIGIT* "*" DIGIT*
 
 element         <- rulename / group / option
                  / char_val / num_val / prose_val
@@ -38,22 +41,22 @@ group           <- "(" c_wsp* alternation c_wsp* ")"
 
 option          <- "[" c_wsp* alternation c_wsp* "]"
 
-char_val        <- DQUOTE (%x20-21 / %x23-7E)* DQUOTE
-                   ; quoted string of SP and VCHAR without DQUOTE
+char_val        <- DQUOTE ( [\x20-\x21] / [\x23-\x7E])* DQUOTE
+                   # quoted string of SP and VCHAR without DQUOTE
 
 num_val         <- "%" (bin_val / dec_val / hex_val)
 
-bin_val         <- "b" BIT+ ( ("." BIT+)+ / ("-" BIT+) )?
-                   ; series of concatenated bit values
-                   ; or single ONEOF range
+bin_val         <- "b" BIT+ ( ("." BIT+)+ / "-" BIT+ )?
+                   # series of concatenated bit values
+                   # or single ONEOF range
 
-dec_val         <- "d" DIGIT+ ( ("." DIGIT+)+ / ("-" DIGIT+) )?
+dec_val         <- "d" DIGIT+ ( ("." DIGIT+)+ / "-" DIGIT+ )?
 
-hex_val         <- "x" HEXDIG+ ( ("." HEXDIG+)+ / ("-" HEXDIG+) )?
+hex_val         <- "x" HEXDIG+ ( ("." HEXDIG+)+ / "-" HEXDIG+ )?
 
-prose_val       <- "<" (%x20-3D / %x3F-7E)* ">"
-                   ; bracketed string of SP and VCHAR without angles
-                   ; prose description, to be used as last resort
+prose_val       <- "<" ([\x20-\x3D] / [\x3F-\x7E])* ">"
+                   # bracketed string of SP and VCHAR without angles
+                   # prose description, to be used as last resort
 
 # Core Rules
 
@@ -77,7 +80,7 @@ CTL             <- [\x00-\x1F]
 DIGIT           <- [\x30-\x39]
                    # %x30-39 ; 0-9
 
-DQUOTE          <- '\x22
+DQUOTE          <- '\x22'
                    # %x22 ; " (Double Quote)
 
 HEXDIG          <- DIGIT / "A" / "B" / "C" / "D" / "E" / "F"
@@ -89,7 +92,7 @@ LF             <- '\x0A'
                   # %x0A ; linefeed
 
 LWSP           <- (WSP / CRLF WSP)*
-                   # linear white space (past newline)
+                  # linear white space (past newline)
 
 OCTET          <- [\x00-\xFF] 
                   # %x00-FF ; 8 bits of data

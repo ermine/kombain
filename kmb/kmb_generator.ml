@@ -1,4 +1,4 @@
-open Peg_grammar
+open Kmb_grammar
 open Camlp4.PreCast;;
 
 module Caml =
@@ -125,7 +125,7 @@ let rec make_rule_expr _loc rules names = function
       | _ ->
           let str = String.create (List.length chars) in
             ignore (List.fold_left (fun i c -> str.[i] <- c; succ i) 0 chars);
-            <:expr< match_pattern $str:str$ >>
+            <:expr< match_pattern $str:String.escaped str$ >>
   )
   | Class classes ->
     let make_expr = function
@@ -167,7 +167,7 @@ let generate declaration rules output_file =
       $
       let parse string =
         let rec $Ast.biAnd_of_list bindings$ in
-        let input = Peg_input.make_input string in
+        let input = Kmb_input.make_input string in
         let result = $lid:rule_prefix ^ start_rule$ input in
           result
           >>;

@@ -127,7 +127,7 @@ let blockTags =
     "tbody"; "td"; "tfoot"; "th"; "thead"; "tr"; "script"
   ]
     
-open Peg_lib
+open Kmb_lib
 
 let kmb_htmlBlockTag input =
   let rec aux_test = function

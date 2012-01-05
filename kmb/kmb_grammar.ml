@@ -1,5 +1,5 @@
-open Peg_input
-open Peg_lib
+open Kmb_input
+open Kmb_lib
 open Printf
 
 exception Error of string
@@ -136,5 +136,8 @@ let make_prefix (f, s) =
 let make_definition ({lexeme}, expr) =
   (lexeme, expr)
 
-let unmatch_curly_bracket {start = (line, col)} =
-  raise (Error (sprintf "Unmatched '{' at line %d col %d" line col)) 
+let unmatched {start = (line, col) ; lexeme} =
+  raise (Error (sprintf "Unmatched %S at line %d col %d" lexeme line col))
+
+let invalid_char {start = (line, col); lexeme} =
+  raise (Error (sprintf "Invalid char %S at line %d col %d" lexeme line col))

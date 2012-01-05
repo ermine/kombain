@@ -483,7 +483,7 @@ let () =
           (fun env _ ->
             let peg = env "%.peg"
             and code = env "%_parser.ml" in
-              Cmd (S[ Px"kmb/kombain_init.byte"; A peg; A code])
+              Cmd (S[ Px"kmb/kombain.byte"; A peg; A code])
           )
       | _ -> ()
     );

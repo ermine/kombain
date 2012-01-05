@@ -1,8 +1,8 @@
 %{
 
-open Peg_input
-open Peg_lib
-open Peg_grammar
+open Kmb_input
+open Kmb_lib
+open Kmb_grammar
 open Printf
 
 %}
@@ -41,24 +41,15 @@ Suffix		<- Primary ( QUESTION 		    { fun _ r -> Opt r }
                                               | Some f -> f p
                                         }
 
-Primary		<- Identifier !LEFTARROW          { make_name }
+Primary		<- Identifier !LEFTARROW       { make_name }
 		       / OPEN Expression CLOSE
-           / < OPEN > { fun {start = (line, col)} ->
-                   raise (Error (sprintf "Unmatched '(' at line %d col %d"
-                         line col))
-                 }
+           / < OPEN > { unmatched }
            / Literal 
 		       / Class 
 		       / DOT
-		       / < LEFTANGLE > Expression (RIGHTANGLE   { fun () -> false }
-                                      /             { fun () -> true })
-             { fun ({start = (line, col)}, (expr, err)) ->
-                if err then
-                  raise (Error (sprintf "Unmatchec '<' at line %d col %d" 
-                                line col))
-                else
-                  make_tokenizer expr
-            }
+		       / LEFTANGLE Expression RIGHTANGLE   { make_tokenizer }
+           / < LEFTANGLE >                     { unmatched }
+
 
 # Lexical syntax
 
@@ -67,19 +58,22 @@ Identifier	<- < IdentStart IdentCont* > Spacing
 IdentStart	<- [a-zA-Z_]
 IdentCont	  <- IdentStart / [0-9']
 Literal		  <- ['] (!['] Char)* ['] Spacing  { make_literal }
+             / < ['] > { unmatched }
 		         / ["] (!["] Char)* ["] Spacing  { make_literal }
+             / < ["] > { unmatched }
 Class		    <- '[' (!']' Range)* ']' Spacing   { make_class }
-             / < '[' > { fun {start = (line, col)} ->
-                          raise (Error (sprintf "Unmatched '[' at line %d col %d"
-                                        line col)) }
+             / < '[' > { unmatched }
 Range		    <- Char '-' Char                   { fun (c1, c2) -> Range (c1, c2) }
+             / Char < '-' >                    { fun (_, c) -> invalid_char c }
              / Char                            { fun c -> Char c }
+             / < . >                           { invalid_char }
 Char		    <- '\\' < [nrt'"\[\]\\] >          { make_escaped_char }
 		         / '\\' < [0-3][0-7][0-7] >        { make_dec_char }
 		         / '\\' < [0-7] [0-7]? >           { make_dec_char }
-             / '\\x' < [0-9a-fA-F] [0-0a-fA-F] > { make_hex_char }
+             / '\\x' < [0-9a-fA-F] [0-9a-fA-F] > { make_hex_char }
              / '\\' '-'                        { fun () -> '-' }
-		         /  !'\\' < .  >                   { make_char }
+             / < '\\' >                        { invalid_char }
+		         /  !'\\' < . >                    { make_char }
 LEFTARROW	  <- '<-' Spacing
 SLASH		    <- '/' Spacing
 AND		      <- '&' Spacing
@@ -97,9 +91,9 @@ EndOfLine	  <- '\r\n' / '\r' / '\n'
 EndOfFile	  <- !.
 
 Action		  <- '{' < (Action' / !'}' .)* >  '}' Spacing
-             / < '{' > { unmatch_curly_bracket }
+             / < '{' > { unmatched }
 Action'     <- '{' (Action' / !'}' .)* '}'
-             / < '{' > { unmatch_curly_bracket }
+             / < '{' > { unmatched }
 
 LEFTANGLE	  <- '<' Spacing
 RIGHTANGLE	<- '>' Spacing

@@ -1,6 +1,6 @@
-open Peg_input
-open Peg_lib
-open Peg_grammar
+open Kmb_input
+open Kmb_lib
+open Kmb_grammar
   
 let _ = Printexc.record_backtrace true
       
@@ -342,4 +342,4 @@ let _ =
   let (declaration, rules), rest = parse_file grammar_file in
     List.iter (fun (name, rule) ->
       Printf.printf "Rule %s " name; print_token rule) rules;
-    Peg_generator.generate declaration rules output_file
+    Kmb_generator.generate declaration rules output_file

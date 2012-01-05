@@ -1,7 +1,7 @@
 ## BBCode PEG Grammar based on https://github.com/AlainODea/mod_experimental
 
 %{
-open Peg_lib
+open Kmb_lib
 %}
 
 Doc <- StartList (Block / Inline)*

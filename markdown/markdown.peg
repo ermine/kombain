@@ -1,5 +1,5 @@
 %{
-open Peg_lib
+open Kmb_lib
 open Markdown_lib
 %}
 

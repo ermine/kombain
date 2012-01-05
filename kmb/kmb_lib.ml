@@ -1,4 +1,5 @@
-open Peg_input
+open Kmb_input
+open Printf
   
 type 'a result =
   | Parsed of 'a * input
@@ -82,8 +83,36 @@ let test_char c input =
       Failed
   )
 
+let match_pattern str input =
+  Printf.printf "match_pattern %S " str;
+  let len = String.length str in
+  let rec aux_iter i input =
+    if i < len && not (end_of_file input) then
+      if str.[i] = input.buf.[input.pos] then
+        aux_iter (succ i) (incr_pos input)
+      else (
+        printf "failed\n";
+        Failed
+      )
+    else if i = len then (
+      printf "success\n";
+      Parsed ((), input)
+    )
+    else (
+      printf "failed\n";
+      Failed
+    )
+  in
+    aux_iter 0 input
+
+
 let test_string cs input =
-  Printf.printf "test_string\n";
+  let str = String.create (List.length cs) in
+  let _ = List.fold_left (fun i c -> str.[i] <- c; succ i) 0 cs in
+    match_pattern str input
+
+(*      
+  printf "test_string\n";
   let rec aux_test pos = function
     | [] -> Parsed ((), {input with pos = pos})
     | c :: cs ->
@@ -95,7 +124,8 @@ let test_string cs input =
         Failed
   in
     aux_test input.pos cs
-    
+*)
+      
 let test_f f input =
   if end_of_file input then
     Failed
@@ -113,22 +143,6 @@ let get_pattern cond input =
         let lexeme = String.sub input.buf curr.pos (input.pos - curr.pos) in
           Parsed (lexeme, input)
       | Failed -> Failed
-
-let match_pattern str input =
-  Printf.printf "match_pattern\n";
-  let len = String.length str in
-  let rec aux_iter i input =
-    if i < len && not (end_of_file input) then
-      if str.[i] = input.buf.[input.pos] then
-        aux_iter (succ i) (incr_pos input)
-      else
-        Failed
-    else if i = len then
-      Parsed ((), input)
-    else
-      Failed
-  in
-    aux_iter 0 input
 
 let seq a b input =
   match a input with

@@ -5,9 +5,12 @@ true: debug
 <kmb/kombain.{byte,native}>: use_camlp4_full
 
 # OASIS_START
-# DO NOT EDIT (digest: 41c2e2500c1f9a9287038eeb9782f696)
+# DO NOT EDIT (digest: b5324feb1e2ff33ddf2fa331842f7622)
 # Library kmb
 "kmb": include
+# Executable bbcode_test
+"bbcode/bbcode_test.byte": use_kmb
+<bbcode/*.ml{,i}>: use_kmb
 # Executable kombain
 "kmb/kombain.byte": pkg_dynlink
 # Executable markdown_test
@@ -16,4 +19,7 @@ true: debug
 # Executable kombain_init
 "kmb/kombain_init.byte": pkg_dynlink
 <kmb/*.ml{,i}>: pkg_dynlink
+# Executable abnf2peg
+"abnf/abnf2peg.byte": use_kmb
+<abnf/*.ml{,i}>: use_kmb
 # OASIS_STOP
