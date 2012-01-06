@@ -144,18 +144,37 @@ let rec make_rule_expr _loc rules names = function
     print_token t;
     assert false
     
-let generate declaration rules output_file =
+
+let make_rule_function _loc verbose name expr rules =
+  Printf.printf "Generating for rule %s" name;
+  if verbose then
+    <:str_item<
+      let $lid:rule_prefix ^ name$ input =
+        Printf.printf "Trying %s... " $str:name$;
+        match $make_rule_expr _loc  rules [name] expr$ input with
+          | Failed as result -> Printf.printf "Failed %s\n" $str:name$; result
+          | Parsed _ as result -> Printf.printf "Success %s\n" $str:name$; result
+            >>
+  else
+    <:str_item< let $lid:rule_prefix ^ name$ input =
+                  $make_rule_expr _loc rules [name] expr$ input
+                  >>
+
+let generate verbose declaration rules output_file =
   let (start_rule, _) = List.hd rules in
+  let sorted = rearrange_grammar rules in
   let _loc = Loc.ghost in
-  let bindings = List.map (fun (name, expr) ->
-    Printf.printf "Generating for rule %s\n" name;
-    <:binding< $lid:rule_prefix ^ name$ input =
-      Printf.printf "Trying %s... " $str:name$;
-    match $make_rule_expr _loc  rules [name] expr$ input with
-        | Failed as result -> Printf.printf "Failed %s\n" $str:name$; result
-        | Parsed _ as result -> Printf.printf "Success %s\n" $str:name$; result
-          >>
-  ) rules in
+  let bindings =
+    List.fold_left (fun acc -> function
+      | Simple simples ->
+        List.fold_left (fun acc (name, expr) ->
+          make_rule_function _loc verbose name expr rules :: acc) acc simples
+      | Recursive rs ->
+        let bs = List.map (fun (name, expr) ->
+          <:binding< $lid:rule_prefix ^ name$ input =
+            $make_rule_expr _loc rules [name] expr$ input >>) rs in
+          <:str_item< let rec $Ast.biAnd_of_list bs$ >> :: acc
+    ) [] sorted in
 
     Caml.print_implem ~output_file
     <:str_item<
@@ -165,11 +184,12 @@ let generate declaration rules output_file =
         | None ->
           <:str_item< >>
       $
-      let parse string =
-        let rec $Ast.biAnd_of_list bindings$ in
-        let input = Kmb_input.make_input string in
-        let result = $lid:rule_prefix ^ start_rule$ input in
-          result
-          >>;
-
-          Printf.printf "\n\nDone!\n"
+            
+$list:List.rev bindings$
+            
+let parse string =
+  let input = Kmb_input.make_input string in
+    $lid:rule_prefix ^ start_rule$ input
+    >>;
+    
+    Printf.printf "\n\nDone!\n"

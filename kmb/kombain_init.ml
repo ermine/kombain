@@ -342,4 +342,4 @@ let _ =
   let (declaration, rules), rest = parse_file grammar_file in
     List.iter (fun (name, rule) ->
       Printf.printf "Rule %s " name; print_token rule) rules;
-    Kmb_generator.generate declaration rules output_file
+    Kmb_generator.generate false declaration rules output_file

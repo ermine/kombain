@@ -141,3 +141,55 @@ let unmatched {start = (line, col) ; lexeme} =
 
 let invalid_char {start = (line, col); lexeme} =
   raise (Error (sprintf "Invalid char %S at line %d col %d" lexeme line col))
+
+let rec is_productive known = function
+  | Name name -> List.mem name known
+  | Class _ -> true
+  | Literal _ -> true
+  | Any -> true
+  | Pattern (_, t) -> is_productive known t
+  | PredicateAND t -> is_productive known t
+  | PredicateNOT t -> is_productive known t
+  | Tokenizer t -> is_productive known t
+  | Action (_, _, t) -> is_productive known t
+  | Star t -> is_productive known t
+  | Opt t -> is_productive known t
+  | Plus t -> is_productive known t
+  | Epsilon -> true
+  | Sequence (t1, t2) ->    
+    is_productive known t1 && is_productive known t2
+  | Alternate (t1, t2) ->
+    is_productive known t1 && is_productive known t2
+    
+
+let simple_productive known rules =
+  let rec aux_rearrange result known rest =
+    let sorted, known, unsorted =
+      List.fold_left (fun (acc, known, unsorted) (name, expr) ->
+        printf "Symbol %s " name;
+        if is_productive known expr then (
+          printf "is productive\n";
+          (name, expr) :: acc, name :: known, unsorted
+        )
+        else (
+          printf "is not productive\n";
+          acc, known, (name, expr) :: unsorted
+        )
+      ) (result, known, []) rest in
+      if sorted = result then
+        List.rev result, known, List.rev unsorted
+      else
+        aux_rearrange sorted known unsorted
+  in
+    aux_rearrange [] known rules
+
+type productive =
+  | Simple of (string * token) list
+  | Recursive of (string * token) list
+
+let rearrange_grammar rules =
+  let sorted, known, unsorted = simple_productive [] rules in
+    match unsorted with
+      | [] -> [Simple sorted]
+      | _ ->
+        [Simple sorted; Recursive unsorted]

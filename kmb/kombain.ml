@@ -14,5 +14,4 @@ let () =
       | Parsed ((dcl, ast), rest) ->
         List.iter (fun (name, rule) ->
           Printf.printf "Rule %s "; print_token rule) ast;
-        Kmb_generator.generate dcl ast Sys.argv.(2)
-
+        Kmb_generator.generate false dcl ast Sys.argv.(2)
