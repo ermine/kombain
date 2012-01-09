@@ -1,5 +1,6 @@
 open Kmb_grammar
 open Camlp4.PreCast;;
+open Printf
 
 module Caml =
   Camlp4.Printers.OCaml.Make
@@ -19,8 +20,8 @@ let rec should_export rules names = function
     else
       try should_export rules (name :: names)
             (List.assoc name rules) with Not_found ->
-        Printf.printf "Warning: Not found rule: %s\n" name;
-        false
+              printf "Warning: Not found rule: %s\n" name;
+              false
   )
   | Action _ -> true
   | Tokenizer _ -> true
@@ -79,8 +80,8 @@ let rec make_rule_expr _loc rules names = function
     let code_expr =
       try Caml.AntiquotSyntax.parse_expr Loc.ghost code
       with exn ->
-        Printf.printf "Bad action %d:%d %S\n" line col code;
-        Printf.printf "Exception: %s\n" (Printexc.to_string exn);
+        printf "Bad action %d:%d %S\n" line col code;
+        printf "Exception: %s\n" (Printexc.to_string exn);
         Pervasives.exit 1
     in
       <:expr< transform
@@ -139,21 +140,16 @@ let rec make_rule_expr _loc rules names = function
       ) <:expr< $make_expr (List.hd classes)$ >> (List.tl classes) in
       <:expr< test_f (fun c -> let c = Char.code c in $exprs$) >>
         
-  | t ->
-    Printf.printf "Lack\n\n";
-    print_token t;
-    assert false
-    
 
 let make_rule_function _loc verbose name expr rules =
-  Printf.printf "Generating for rule %s" name;
+  printf "Generating for rule %s\n" name;
   if verbose then
     <:str_item<
       let $lid:rule_prefix ^ name$ input =
-        Printf.printf "Trying %s... " $str:name$;
+        printf "Trying %s... " $str:name$;
         match $make_rule_expr _loc  rules [name] expr$ input with
-          | Failed as result -> Printf.printf "Failed %s\n" $str:name$; result
-          | Parsed _ as result -> Printf.printf "Success %s\n" $str:name$; result
+          | Failed as result -> printf "Failed %s\n" $str:name$; result
+          | Parsed _ as result -> printf "Success %s\n" $str:name$; result
             >>
   else
     <:str_item< let $lid:rule_prefix ^ name$ input =
@@ -192,4 +188,4 @@ let parse string =
     $lid:rule_prefix ^ start_rule$ input
     >>;
     
-    Printf.printf "\n\nDone!\n"
+    printf "\n\nDone!\n"

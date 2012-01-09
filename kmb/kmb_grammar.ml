@@ -4,26 +4,26 @@ open Printf
 
 exception Error of string
 
-type class_t =
-  | Char of char
-  | Range of char * char
+type 'char class_t =
+  | Char of 'char
+  | Range of 'char * 'char
 
-type token =
+type 'char token =
   | Epsilon
   | Name of string
   | Literal of char list
-  | Class of class_t list
-  | Action of (int * int) * string * token
+  | Class of 'char class_t list
+  | Action of (int * int) * string * 'char token
   | Any
-  | Tokenizer of token
-  | Opt of token
-  | Plus of token
-  | Star of token
-  | PredicateNOT of token
-  | PredicateAND of token
-  | Sequence of token * token
-  | Alternate of token * token
-  | Pattern of string * token
+  | Tokenizer of 'char token
+  | Opt of 'char token
+  | Plus of 'char token
+  | Star of 'char token
+  | PredicateNOT of 'char token
+  | PredicateAND of 'char token
+  | Sequence of 'char token * 'char token
+  | Alternate of 'char token * 'char token
+  | Pattern of string * 'char token
 
 let rec print_token = function
   | Epsilon ->
@@ -166,15 +166,10 @@ let simple_productive known rules =
   let rec aux_rearrange result known rest =
     let sorted, known, unsorted =
       List.fold_left (fun (acc, known, unsorted) (name, expr) ->
-        printf "Symbol %s " name;
-        if is_productive known expr then (
-          printf "is productive\n";
+        if is_productive known expr then
           (name, expr) :: acc, name :: known, unsorted
-        )
-        else (
-          printf "is not productive\n";
+        else
           acc, known, (name, expr) :: unsorted
-        )
       ) (result, known, []) rest in
       if sorted = result then
         List.rev result, known, List.rev unsorted
@@ -183,10 +178,45 @@ let simple_productive known rules =
   in
     aux_rearrange [] known rules
 
-type productive =
-  | Simple of (string * token) list
-  | Recursive of (string * token) list
+type 'char productive =
+  | Simple of (string * 'char token) list
+  | Recursive of (string * 'char token) list
 
+
+let string_of_char = function
+  | '\n' -> "\\n"
+  | '\r' -> "\\r"
+  | '\b' -> "\\b"
+  | '\t' -> "\\t"
+  | '[' -> "\\["
+  | ']' -> "\\]"
+  | '-' -> "\\-"
+  | c -> String.make 1 c
+
+let rec string_of_token = function
+  | Epsilon -> ""
+  | Name name -> name
+  | Literal cs ->
+    let str = String.create (List.length cs) in
+    let _ = List.fold_left (fun i c -> str.[i] <- c; succ i) 0 cs in
+      "\"" ^ String.escaped str ^ "\""
+  | Class cs ->
+    List.fold_left (fun str -> function
+      | Range (c1, c2) ->
+        sprintf "%s%s-%s" str (string_of_char c1) (string_of_char c2)
+      | Char c ->
+        sprintf "%s%s" str (string_of_char c)
+    ) "[" cs ^ "]"
+  | PredicateNOT t -> "!" ^ string_of_token t
+  | PredicateAND t -> "&" ^ string_of_token t
+  | Opt t -> string_of_token t ^ "?"
+  | Star t -> string_of_token t ^ "*"
+  | Plus t -> string_of_token t ^ "+"
+  | Sequence (s1, s2) ->
+    sprintf "(%s %s)" (string_of_token s1) (string_of_token s2)
+  | Alternate (a1, a2) ->
+    sprintf "(%s / %s)" (string_of_token a1) (string_of_token a2)
+  
 let rearrange_grammar rules =
   let sorted, known, unsorted = simple_productive [] rules in
     match unsorted with
