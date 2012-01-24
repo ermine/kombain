@@ -4,6 +4,21 @@ open Kmb_grammar
   
 let _ = Printexc.record_backtrace true
       
+let test_char c = test_char (Char.code c)
+
+let test_f f input =
+  if end_of_file input then
+    Failed
+  else (
+    Printf.printf "test_f %d:%d %C\n" input.line input.col input.buf.[input.pos];
+    if f input.buf.[input.pos] then
+      Parsed ((), incr_pos input)
+    else
+      Failed
+  )
+
+
+
 let end_of_line input =
   alt
     (seq (test_char '\r') (test_char '\n'))
@@ -67,7 +82,6 @@ let slash_siqn input =
 let identStart input =
   test_f (function
     | 'a' .. 'z'
-    | 'A' .. 'Z'
     | '_' -> true
     | _ -> false
   ) input
@@ -76,13 +90,13 @@ let identCont input =
   alt
     identStart
     (test_f (function
+      | 'A' .. 'Z'
       | '0' .. '9' | '\'' -> true
       | _ -> false
      )) input
 
 let leftarrow input =
-  Printf.printf "leftarrow";
-  seq (test_string ['<'; '-']) spacing input
+  seq (match_pattern [Char.code '<'; Char.code '-']) spacing input
 
 let leftangle input =
   seq (test_char '<') spacing input
@@ -131,7 +145,7 @@ let char_sign input =
                 (seq_n
                    backslash_sign
                    (test_char '-'))
-                (fun () -> '-'))
+                (fun () -> Char.code '-'))
              (transform
                 (seq_r
                    (predicate_not backslash_sign)
@@ -297,19 +311,21 @@ let def_definition input =
     (seq_r leftarrow def_expression) input
 
 let dcl_start input =
-  seq (test_string ['%';'{']) spacing input
+  seq (match_pattern [Char.code '%';Char.code '{']) spacing input
 
 let dcl_end input =
-  seq (test_string ['%';'}']) spacing input
+  seq (match_pattern [Char.code '%'; Char.code '}']) spacing input
 
 let def_declaration input =
   opt_accu
     (transform
        (seq dcl_start
           (seq_l
-             (get_lexeme (star (seq
-                                  (predicate_not (test_string ['%'; '}']))
-                                  (test_any))))
+             (get_lexeme (star
+                            (seq
+                               (predicate_not
+                                  (match_pattern [Char.code '%'; Char.code '}']))
+                               (test_any))))
              dcl_end
           ))
        make_declaration)
@@ -341,5 +357,5 @@ let _ =
   let output_file = Sys.argv.(2) in
   let (declaration, rules), rest = parse_file grammar_file in
     List.iter (fun (name, rule) ->
-      Printf.printf "Rule %s " name; print_token rule) rules;
+      Printf.printf "Rule %s <- %s\n\n" name (string_of_token rule)) rules;
     Kmb_generator.generate false declaration rules output_file

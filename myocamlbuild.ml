@@ -1,12 +1,12 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: bd81ad09e8d5a020a2a0cac630fa1200) *)
+(* DO NOT EDIT (digest: bddcc89a7aaaf2c3c18d44cedd4b64e1) *)
 module OASISGettext = struct
 # 21 "/usr/home/ermine/projects/ocaml/src/oasis/src/oasis/OASISGettext.ml"
   
-  let ns_ str = 
+  let ns_ str =
     str
   
-  let s_ str = 
+  let s_ str =
     str
   
   let f_ (str : ('a, 'b, 'c, 'd) format4) =
@@ -18,7 +18,7 @@ module OASISGettext = struct
     else
       fmt2^^""
   
-  let init = 
+  let init =
     []
   
 end
@@ -46,18 +46,18 @@ module OASISExpr = struct
   type 'a choices = (t * 'a) list 
   
   let eval var_get t =
-    let rec eval' = 
+    let rec eval' =
       function
         | EBool b ->
             b
   
-        | ENot e -> 
+        | ENot e ->
             not (eval' e)
   
         | EAnd (e1, e2) ->
             (eval' e1) && (eval' e2)
   
-        | EOr (e1, e2) -> 
+        | EOr (e1, e2) ->
             (eval' e1) || (eval' e2)
   
         | EFlag nm ->
@@ -76,19 +76,19 @@ module OASISExpr = struct
       eval' t
   
   let choose ?printer ?name var_get lst =
-    let rec choose_aux = 
+    let rec choose_aux =
       function
         | (cond, vl) :: tl ->
-            if eval var_get cond then 
-              vl 
+            if eval var_get cond then
+              vl
             else
               choose_aux tl
         | [] ->
-            let str_lst = 
+            let str_lst =
               if lst = [] then
                 s_ "<empty>"
               else
-                String.concat 
+                String.concat
                   (s_ ", ")
                   (List.map
                      (fun (cond, vl) ->
@@ -97,10 +97,10 @@ module OASISExpr = struct
                           | None -> s_ "<no printer>")
                      lst)
             in
-              match name with 
+              match name with
                 | Some nm ->
                     failwith
-                      (Printf.sprintf 
+                      (Printf.sprintf
                          (f_ "No result for the choice list '%s': %s")
                          nm str_lst)
                 | None ->
@@ -122,7 +122,7 @@ module BaseEnvLight = struct
   type t = string MapString.t
   
   let default_filename =
-    Filename.concat 
+    Filename.concat
       (Sys.getcwd ())
       "setup.data"
   
@@ -138,23 +138,23 @@ module BaseEnvLight = struct
         let line =
           ref 1
         in
-        let st_line = 
+        let st_line =
           Stream.from
             (fun _ ->
                try
-                 match Stream.next st with 
+                 match Stream.next st with
                    | '\n' -> incr line; Some '\n'
                    | c -> Some c
                with Stream.Failure -> None)
         in
-        let lexer = 
+        let lexer =
           Genlex.make_lexer ["="] st_line
         in
         let rec read_file mp =
-          match Stream.npeek 3 lexer with 
+          match Stream.npeek 3 lexer with
             | [Genlex.Ident nm; Genlex.Kwd "="; Genlex.String value] ->
-                Stream.junk lexer; 
-                Stream.junk lexer; 
+                Stream.junk lexer;
+                Stream.junk lexer;
                 Stream.junk lexer;
                 read_file (MapString.add nm value mp)
             | [] ->
@@ -177,8 +177,8 @@ module BaseEnvLight = struct
       end
     else
       begin
-        failwith 
-          (Printf.sprintf 
+        failwith
+          (Printf.sprintf
              "Unable to load environment, the file '%s' doesn't exist."
              filename)
       end
@@ -188,23 +188,23 @@ module BaseEnvLight = struct
       let buff =
         Buffer.create ((String.length str) * 2)
       in
-        Buffer.add_substitute 
+        Buffer.add_substitute
           buff
-          (fun var -> 
-             try 
+          (fun var ->
+             try
                var_expand (MapString.find var env)
              with Not_found ->
-               failwith 
-                 (Printf.sprintf 
+               failwith
+                 (Printf.sprintf
                     "No variable %s defined when trying to expand %S."
-                    var 
+                    var
                     str))
           str;
         Buffer.contents buff
     in
       var_expand (MapString.find name env)
   
-  let var_choose lst env = 
+  let var_choose lst env =
     OASISExpr.choose
       (fun nm -> var_get nm env)
       lst
@@ -311,6 +311,7 @@ module MyOCamlbuildFindlib = struct
            * the "threads" package using the previous plugin.
            *)
           flag ["ocaml"; "pkg_threads"; "compile"] (S[A "-thread"]);
+          flag ["ocaml"; "pkg_threads"; "doc"] (S[A "-I"; A "+threads"]);
           flag ["ocaml"; "pkg_threads"; "link"] (S[A "-thread"]);
           flag ["ocaml"; "pkg_threads"; "infer_interface"] (S[A "-thread"])
   
@@ -459,6 +460,7 @@ let package_default =
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
+# 464 "myocamlbuild.ml"
 (* OASIS_STOP *)
 
 let () =

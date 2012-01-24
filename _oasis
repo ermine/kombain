@@ -10,6 +10,7 @@ BuildTools:  ocamlbuild
 
 Executable kombain_init
   Path:		kmb
+  Install:	false
   MainIs:	kombain_init.ml
   BuildDepends:	dynlink
 
@@ -37,3 +38,18 @@ Executable abnf2peg
   MainIs:	abnf2peg.ml
   BuildDepends:	kmb
 
+Executable xmlebnfreader
+  Path:		xml
+  MainIs:	xmlebnfreader.ml
+  BuildDepends:	kmb
+
+Executable xmltest
+  Path:		xml
+  MainIs:	xmltest.ml
+  BuildDepends:	kmb
+
+Executable yamlspecreader
+  Path:		yaml
+  MainIs:	yamlspecreader.ml
+  BuildDepends:	kmb, camlp4
+ 

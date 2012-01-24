@@ -3,23 +3,52 @@ true: debug
 <kmb/kmb_generator.ml>: use_camlp4_full, camlp4of
 <kmb/kombain_init.{byte,native}>: use_camlp4_full
 <kmb/kombain.{byte,native}>: use_camlp4_full
+<kmb/kmb_grammar.ml>: use_camlp4
+
+<yaml/yamlspec_types.ml>: syntax_camlp4o, pkg_camlp4.quotations.o
+<yaml/yamlspecreader.byte>: use_camlp4, use_dynlink
+
+
 
 # OASIS_START
-# DO NOT EDIT (digest: b5324feb1e2ff33ddf2fa331842f7622)
+# DO NOT EDIT (digest: f35ccb0cb7fd378356f3edaf5f16cee6)
+# Ignore VCS directories, you can use the same kind of rule outside 
+# OASIS_START/STOP if you want to exclude directories that contains 
+# useless stuff for the build process
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
 # Library kmb
 "kmb": include
 # Executable bbcode_test
 "bbcode/bbcode_test.byte": use_kmb
 <bbcode/*.ml{,i}>: use_kmb
-# Executable kombain
-"kmb/kombain.byte": pkg_dynlink
-# Executable markdown_test
-"markdown/markdown_test.byte": use_kmb
-<markdown/*.ml{,i}>: use_kmb
-# Executable kombain_init
-"kmb/kombain_init.byte": pkg_dynlink
-<kmb/*.ml{,i}>: pkg_dynlink
 # Executable abnf2peg
 "abnf/abnf2peg.byte": use_kmb
 <abnf/*.ml{,i}>: use_kmb
+# Executable kombain
+"kmb/kombain.byte": pkg_dynlink
+# Executable xmlebnfreader
+"xml/xmlebnfreader.byte": use_kmb
+# Executable kombain_init
+"kmb/kombain_init.byte": pkg_dynlink
+<kmb/*.ml{,i}>: pkg_dynlink
+# Executable markdown_test
+"markdown/markdown_test.byte": use_kmb
+<markdown/*.ml{,i}>: use_kmb
+# Executable xmltest
+"xml/xmltest.byte": use_kmb
+<xml/*.ml{,i}>: use_kmb
+# Executable yamlspecreader
+"yaml/yamlspecreader.byte": use_kmb
+"yaml/yamlspecreader.byte": pkg_camlp4
+<yaml/*.ml{,i}>: use_kmb
+<yaml/*.ml{,i}>: pkg_camlp4
 # OASIS_STOP

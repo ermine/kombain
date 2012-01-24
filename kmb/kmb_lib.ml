@@ -34,12 +34,6 @@ let opt_accu cond input =
     | Parsed (r, input) -> Parsed (Some r, input)
     | Failed -> Parsed (None, input)
 
-type lexeme = {
-  start : int * int;
-  stop : int * int;
-  lexeme : string
-}
-
 let get_lexeme cond input =
   let start = input in
     match cond input with
@@ -51,97 +45,60 @@ let get_lexeme cond input =
                    lexeme}, input)
       | Failed -> Failed
       
-let end_of_file input =
-  input.pos = input.len
-
 let test_any input =
   if end_of_file input then
     Failed
-  else (
-    Printf.printf "test_any %d:%d %C\n" input.line input.col
-      input.buf.[input.pos];
-    Parsed ((), incr_pos input)
-  )
-
-(*
-let test cond input =
-  if cond input then
-    Parsed state
   else
-    Failed
-*)
+    let _curr = get_current input in
+      Parsed ((), incr_pos input)
 
 let test_char c input =
   if end_of_file input then
     Failed
-  else (
-    Printf.printf "test_char %d:%d %C %C\n" input.line input.col
-      input.buf.[input.pos] c;
-    if input.buf.[input.pos] = c then
-      Parsed ((), incr_pos input)
-    else
-      Failed
-  )
-
-let match_pattern str input =
-  Printf.printf "match_pattern %S " str;
-  let len = String.length str in
-  let rec aux_iter i input =
-    if i < len && not (end_of_file input) then
-      if str.[i] = input.buf.[input.pos] then
-        aux_iter (succ i) (incr_pos input)
-      else (
-        printf "failed\n";
-        Failed
-      )
-    else if i = len then (
-      printf "success\n";
-      Parsed ((), input)
-    )
-    else (
-      printf "failed\n";
-      Failed
-    )
-  in
-    aux_iter 0 input
-
-
-let test_string cs input =
-  let str = String.create (List.length cs) in
-  let _ = List.fold_left (fun i c -> str.[i] <- c; succ i) 0 cs in
-    match_pattern str input
-
-(*      
-  printf "test_string\n";
-  let rec aux_test pos = function
-    | [] -> Parsed ((), {input with pos = pos})
-    | c :: cs ->
-      if end_of_file input then
-        Failed
-      else if input.buf.[pos] = c then
-        aux_test (succ pos) cs
+  else
+    let curr = get_current input in
+      if curr = c then
+        Parsed ((), incr_pos input)
       else
         Failed
+
+let match_pattern cs input =
+  let rec aux_iter input = function
+    | [] -> Parsed ((), input)
+    | x :: xs ->
+      if end_of_file input then
+        Failed
+      else
+        let curr = get_current input in
+          if curr = x then
+            aux_iter (incr_pos input) xs
+          else
+            Failed
   in
-    aux_test input.pos cs
-*)
-      
-let test_f f input =
+    aux_iter input cs
+
+let test_class fn input =
   if end_of_file input then
     Failed
-  else (
-    Printf.printf "test_f %d:%d %C\n" input.line input.col input.buf.[input.pos];
-    if f input.buf.[input.pos] then
-      Parsed ((), incr_pos input)
-    else
-      Failed
-  )
+  else
+    let cur = get_current input in
+      if fn cur  then
+        Parsed ((), incr_pos input)
+      else
+        Failed
+    
 let get_pattern cond input =
   let curr = input in
     match cond input with
       | Parsed ((), input) ->
-        let lexeme = String.sub input.buf curr.pos (input.pos - curr.pos) in
-          Parsed (lexeme, input)
+        let rec aux_iter i =
+          if i < input.pos then
+            Char.code (input.buf.[i]) :: aux_iter (succ i)
+          else
+            []
+        in
+        let chars = aux_iter curr.pos in
+          Parsed (chars, input)
       | Failed -> Failed
 
 let seq a b input =

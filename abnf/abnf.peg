@@ -12,7 +12,7 @@
 ###
 
 %{
-open Kmb_lib
+open Kmb_grammar
 open Abnf_lib
 %}
 

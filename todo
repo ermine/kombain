@@ -1,0 +1,7 @@
+Validation mode for grammars, without compilation
+-verbose during generating
+
+дублирующие правила добавлять как альтернативы
+name <- a
+name <- b
+=> name <- a / b

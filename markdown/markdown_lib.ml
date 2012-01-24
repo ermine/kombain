@@ -119,6 +119,7 @@ let make_entity state _ _ lexeme =
 let make_text state _ _ lexeme =
   Text lexeme :: state
 
+(*
 let blockTags =
   List.fold_left (fun acc x -> x :: String.uppercase x :: acc) [] [
     "address"; "blockquote"; "center"; "dir"; "div"; "dl"; "fieldset"; "form";
@@ -127,8 +128,6 @@ let blockTags =
     "tbody"; "td"; "tfoot"; "th"; "thead"; "tr"; "script"
   ]
     
-open Kmb_lib
-
 let kmb_htmlBlockTag input =
   let rec aux_test = function
     | [] -> Failed
@@ -138,6 +137,9 @@ let kmb_htmlBlockTag input =
         | Failed -> aux_test xs
   in
     aux_test blockTags
+*)
+
+open Kmb_lib
 
 let make_blackquote ls =
   let txt = String.concat "" 

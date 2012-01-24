@@ -8,10 +8,6 @@ type repeat =
   | RangeRepeat of int option * int option
 
 
-type class_char =
-  | Range of int * int
-  | Char of int
-      
 type token =
   | Alternation of token * token list
   | Concatenation of token * token list
@@ -19,9 +15,8 @@ type token =
   | Name of string
   | Option  of token
   | Literal of string
-  | Class of class_char list
+  | Class of Kmb_grammar.class_t list
   | Prose of Kmb_lib.lexeme
-
 
 
 let convert_name name =
@@ -96,16 +91,18 @@ let rec make_peg = function
   | Option e -> Kmb_grammar.Opt (make_peg e)
   | Literal str ->
     let len = String.length str in
-    let rec aux_iter acc i =
-      if i < len then aux_iter (str.[i] :: acc) (succ i) else List.rev acc in
-    let cs = aux_iter [] 0 in
+    let rec aux_iter i =
+      if i < len then
+        Char.code str.[i] :: aux_iter (succ i)
+      else
+        []
+    in
+    let cs = aux_iter 0 in
       Kmb_grammar.Literal cs
   | Class cs ->
-    Kmb_grammar.Class (List.map (function
-      | Char i -> Kmb_grammar.Char (Char.chr i)
-      | Range (n, m) -> Kmb_grammar.Range (Char.chr n, Char.chr m)) cs)
+    Kmb_grammar.Class cs
   | Prose l ->
-    Kmb_grammar.Action
+    Kmb_grammar.Transform
       (l.Kmb_lib.start, 
        (Printf.sprintf 
           "fun _ -> failwith \"Please implement prose-val %S\""

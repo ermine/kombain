@@ -6,6 +6,16 @@ type input = {
   col : int
 }
 
+type lexeme = {
+  start : int * int;
+  stop : int * int;
+  lexeme : string
+}
+
+
+let end_of_file input =
+  input.pos = input.len
+
 let incr_pos input =
   (* no boundaries check due to incr_pos is called only
      after successful input tests *)
@@ -40,4 +50,9 @@ let read_file file =
   let lines = aux_read [] in
     close_in f;
     String.concat "\n" lines ^ "\n"
+
+let get_current input =
+  Printf.printf "get_current %d:%d %C\n" input.line input.col
+    input.buf.[input.pos];
+  Char.code (input.buf.[input.pos])
 

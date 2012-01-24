@@ -13,5 +13,5 @@ let () =
         Printf.printf "failed";
       | Parsed ((dcl, ast), rest) ->
         List.iter (fun (name, rule) ->
-          Printf.printf "Rule %s "; print_token rule) ast;
-        Kmb_generator.generate false dcl ast Sys.argv.(2)
+          Printf.printf "%s <- %s\n\n" name (string_of_token rule)) ast;
+        Kmb_generator.generate true dcl ast Sys.argv.(2)

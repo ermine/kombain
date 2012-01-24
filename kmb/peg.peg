@@ -1,7 +1,6 @@
 %{
 
 open Kmb_input
-open Kmb_lib
 open Kmb_grammar
 open Printf
 
@@ -9,92 +8,93 @@ open Printf
 
 # Hierarchical syntax
 
-Grammar		<- Spacing Declaration? Definition+ EndOfFile
+grammar		<- spacing declaration? definition+ endOfFile
 
-Declaration  <- '%{' < ( !'%}' .)* > '%}' Spacing       { make_declaration }
+declaration  <- '%{' < ( !'%}' .)* > '%}' spacing       { make_declaration }
 
-Definition   <- Identifier LEFTARROW Expression { make_definition }
+definition   <- ident l_leftarrow expression { make_definition }
               / < . > { fun {start = (line, col)} ->
                           raise (Error (sprintf 
                             "Invalid rule definition at line %d col %d" 
                             line col)) 
                       }
 
-Expression	<- Sequence (SLASH Sequence)*       { make_alternates }
+expression	<- sequence (l_slash sequence)*       { make_alternates }
 
-Sequence	<- Item* Action?                      { make_sequence }
+sequence	<- item* l_transform?                   { make_sequence }
 
-Item      <- Identifier AT Suffix               { make_pattern }
-           / Prefix
+item      <- ident l_at suffix               { make_pattern }
+           / prefix
 
-Prefix		<- (AND                               { make_predicate_and }
-             / NOT                              { make_predicate_not }
-             )? Suffix                          { make_prefix }
+prefix		<- (l_and                             { make_predicate_and }
+             / l_not                             { make_predicate_not }
+             )? suffix                          { make_prefix }
                                                 
 
-Suffix		<- Primary ( QUESTION 		    { fun _ r -> Opt r }
-			               / STAR 			      { fun _ r -> Star r }
-			               / PLUS			        { fun _ r -> Plus r }
+suffix		<- primary ( l_question 		    { fun _ r -> Opt r }
+			               / l_star 			      { fun _ r -> Star r }
+			               / l_plus			        { fun _ r -> Plus r }
 			               )?                 { fun (p, f) ->
                                             match f with
                                               | None -> p
                                               | Some f -> f p
                                         }
 
-Primary		<- Identifier !LEFTARROW       { make_name }
-		       / OPEN Expression CLOSE
-           / < OPEN > { unmatched }
-           / Literal 
-		       / Class 
-		       / DOT
-		       / LEFTANGLE Expression RIGHTANGLE   { make_tokenizer }
-           / < LEFTANGLE >                     { unmatched }
+primary		<- ident !l_leftarrow       { make_name }
+		       / l_open expression l_close
+           / < l_open > { unmatched }
+           / literal 
+		       / l_class 
+		       / l_dot
+		       / l_leftangle expression l_rightangle   { make_tokenizer }
+           / < l_leftangle >                       { unmatched }
 
 
 # Lexical syntax
 
-Identifier	<- < IdentStart IdentCont* > Spacing
+# Copied from OCaml's documentation
+ident       <- < (letter / '_') (letter / [0-9_'])* > spacing
+letter      <- [A-Za-z]
 
-IdentStart	<- [a-zA-Z_]
-IdentCont	  <- IdentStart / [0-9']
-Literal		  <- ['] (!['] Char)* ['] Spacing  { make_literal }
+literal		  <- ['] (!['] char)* ['] spacing  { make_literal }
              / < ['] > { unmatched }
-		         / ["] (!["] Char)* ["] Spacing  { make_literal }
+		         / ["] (!["] char)* ["] spacing  { make_literal }
              / < ["] > { unmatched }
-Class		    <- '[' (!']' Range)* ']' Spacing   { make_class }
+l_class	    <- '[' (!']' range)* ']' spacing   { make_class }
              / < '[' > { unmatched }
-Range		    <- Char '-' Char                   { fun (c1, c2) -> Range (c1, c2) }
-             / Char < '-' >                    { fun (_, c) -> invalid_char c }
-             / Char                            { fun c -> Char c }
+range		    <- char '-' char                   { fun (c1, c2) -> Range (c1, c2) }
+             / char < '-' >                    { fun (_, c) -> invalid_char c }
+             / char                            { fun c -> Char c }
              / < . >                           { invalid_char }
-Char		    <- '\\' < [nrt'"\[\]\\] >          { make_escaped_char }
+char		    <- '\\' < [nrt'"\[\]\\] >          { make_escaped_char }
 		         / '\\' < [0-3][0-7][0-7] >        { make_dec_char }
 		         / '\\' < [0-7] [0-7]? >           { make_dec_char }
-             / '\\x' < [0-9a-fA-F] [0-9a-fA-F] > { make_hex_char }
-             / '\\' '-'                        { fun () -> '-' }
+             / '\\x' < hex+ >                  { make_hex_char }
+             / '\\' '-'                        { fun () -> Char.code '-' }
              / < '\\' >                        { invalid_char }
 		         /  !'\\' < . >                    { make_char }
-LEFTARROW	  <- '<-' Spacing
-SLASH		    <- '/' Spacing
-AND		      <- '&' Spacing
-NOT		      <- '!' Spacing
-QUESTION	  <- '?' Spacing
-STAR		    <- '*' Spacing
-PLUS		    <- '+' Spacing
-OPEN		    <- '(' Spacing
-CLOSE		    <- ')' Spacing
-DOT		      <- '.' Spacing                          { fun () -> Any }
-Spacing		  <- (Space / Comment)*
-Comment		  <- '#' (!EndOfLine .)* EndOfLine
-Space		    <- ' ' / '\t' / EndOfLine
-EndOfLine	  <- '\r\n' / '\r' / '\n'
-EndOfFile	  <- !.
+hex         <- [0-9a-fA-F]
+l_leftarrow	<- '<-' spacing
+l_slash	    <- '/' spacing
+l_and	      <- '&' spacing
+l_not	      <- '!' spacing
+l_question	  <- '?' spacing
+l_star		    <- '*' spacing
+l_plus		    <- '+' spacing
+l_open		    <- '(' spacing
+l_close		  <- ')' spacing
+l_dot		    <- '.' spacing                          { fun () -> Any }
+spacing		  <- (space / comment)*
+comment		  <- '#' (!endOfLine .)* endOfLine
+space		    <- ' ' / '\t' / endOfLine
+endOfLine	  <- '\r\n' / '\r' / '\n'
+endOfFile	  <- !.
 
-Action		  <- '{' < (Action' / !'}' .)* >  '}' Spacing
-             / < '{' > { unmatched }
-Action'     <- '{' (Action' / !'}' .)* '}'
-             / < '{' > { unmatched }
+l_transform		  <- '{' < (l_transform' / !'}' .)* >  '}' spacing
+               / < '{' > { unmatched }
+l_transform'    <- '{' (l_transform' / !'}' .)* '}'
+               / < '{' > { unmatched }
 
-LEFTANGLE	  <- '<' Spacing
-RIGHTANGLE	<- '>' Spacing
-AT          <- '@' Spacing
+l_leftangle	  <- '<' spacing
+l_rightangle	<- '>' spacing
+l_at          <- '@' spacing

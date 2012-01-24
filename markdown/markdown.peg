@@ -1,5 +1,4 @@
 %{
-open Kmb_lib
 open Markdown_lib
 %}
 
@@ -96,6 +95,14 @@ htmlComment     <- "<!--" (!"-->" .)* "-->"
 htmlTag         <- "<" SpNl "/"? AlphaNum+ SpNl htmlAttribute* "/"? ">"
 htmlAttribute   <- AlphaNum+ SpNl ("=" SpNl (Quoted / (!Spaces .)+))? SpNl
 Quoted          <- ["] (!'\"' .)* ["] / ['] (!'\'' .)* [']
+
+
+htmlBlockTag    <- "address" / "blockquote" / "center" / "dir" / "div" 
+                 / "dl" / "fieldset" / "form" / "h1" / "h2" / "h3" / "h4" 
+                 / "h5" / "h6" / "hr" / "isindex" / "menu" / "noframes" 
+                 / "noscript" / "ol" / "p" / "pre" / "table" / "ul" / "dd" 
+                 / "dt" / "frameset" / "li" / "tbody" / "td" / "tfoot" / "th" 
+                 / "thead" / "tr" / "script"
 
 htmlBlockAny    <- '<' SpNl '/' htmlBlockTag '>'
 

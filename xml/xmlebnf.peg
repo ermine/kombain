@@ -1,0 +1,57 @@
+# It parses XML EBNF
+%{
+open Kmb_grammar
+%}
+
+Grammar         <- Spacing Definition+ Spacing EndOfFile
+Definition      <- Spacing Number Rule
+Rule            <- Identifier Defined_as Expression
+
+Expression      <- Sequence (PIPE Sequence)*   {make_alternates }
+Sequence        <- (!(Number Identifier Defined_as) Disjunction)+
+                   { fun s -> make_sequence (s, None)}
+
+Disjunction     <- Element '-' Spacing Element
+                   { fun (e1, e2) -> Sequence (PredicateNOT e2, e1) }
+                 / Element
+
+Element         <- Primary (STAR               { fun () v -> Star v }
+                           / PLUS              { fun () v -> Plus v }
+                           / QUESTION          { fun () v -> Opt v }
+                           )?
+                   { fun (el, repeat) -> 
+                       match repeat with None -> el | Some f -> f el }
+
+Primary         <- Identifier   { make_name }
+                 / OPEN Expression CLOSE
+                 / Literal 
+                 / Class 
+
+# Lex
+
+Identifier      <- < [a-zA-Z]+ > Spacing
+Number          <- Spacing < '[' [0-9a-z]+ ']' > Spacing
+Literal         <- ( ["] (!["] Char)* ["]  Spacing
+                   / ['] (!['] Char)* ['] Spacing
+                   / Hex Spacing{ fun c -> [c]} )
+                    { make_literal }
+Class           <- "[^" (!"]" Range)* "]" Spacing
+                   { fun v -> Sequence (PredicateNOT (make_class v), Any) }
+                 / "["  (!"]" Range)* "]" Spacing     { make_class }
+Range           <- Hex '-' Hex           { fun (c1, c2) -> Range (c1, c2) }
+                 / Char '-' Char         { fun (c1, c2) -> Range (c1, c2) }
+                 / Char                  { fun c -> Char c }
+Hex             <- '#x' < [0-9a-fA-F]+ >       { make_hex_char }
+Char            <- < . >                       { make_char }
+
+
+Defined_as      <- "::=" Spacing
+QUESTION        <- '?' Spacing
+PLUS            <- '+' Spacing
+STAR            <- '*' Spacing
+PIPE            <- '|' Spacing
+OPEN            <- '(' Spacing
+CLOSE           <- ')' Spacing
+Spacing         <- [\r\n\t ]*
+EndOfFile       <- !.
+
