@@ -16,7 +16,7 @@ type token =
   | Option  of token
   | Literal of string
   | Class of Kmb_grammar.class_t list
-  | Prose of Kmb_lib.lexeme
+  | Prose of Kmb_input.lexeme
 
 
 let convert_name name =
@@ -103,9 +103,9 @@ let rec make_peg = function
     Kmb_grammar.Class cs
   | Prose l ->
     Kmb_grammar.Transform
-      (l.Kmb_lib.start, 
-       (Printf.sprintf 
-          "fun _ -> failwith \"Please implement prose-val %S\""
-          l.Kmb_lib.lexeme),
+      ({l with Kmb_input.lexeme =
+          Printf.sprintf 
+            "fun _ -> failwith \"Please implement prose-val %S\""
+            l.Kmb_input.lexeme},
        Kmb_grammar.Epsilon)
 

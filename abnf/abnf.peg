@@ -12,8 +12,10 @@
 ###
 
 %{
+open Kmb_input
 open Kmb_grammar
 open Abnf_lib
+
 %}
 
 
@@ -23,7 +25,7 @@ rule          <- rulename defined_as elements c_nl
                  # continues if next line starts
                  #  with white space
 
-rulename      <- < ALPHA (ALPHA / DIGIT / "-")* >
+rulename      <- < alpha (alpha / digit / "-")* >
 
 defined_as    <- c_wsp* ( "="   { fun () -> Define }
                         / "=/" { fun () -> IncrAlt }
@@ -32,12 +34,12 @@ defined_as    <- c_wsp* ( "="   { fun () -> Define }
 
 elements      <- alternation c_wsp*
 
-c_wsp         <- WSP / (c_nl WSP)
+c_wsp         <- wsp / (c_nl wsp)
 
-c_nl          <- comment / CRLF / LF
+c_nl          <- comment / crlf / lf
                  # comment or newline
 
-comment       <- ";" (WSP / VCHAR)* CRLF
+comment       <- ";" (wsp / vchar)* crlf
 
 alternation   <- concatenation (c_wsp* "/" c_wsp* concatenation)*
                  { fun (c1, cs) -> Alternation (c1, cs) }
@@ -48,8 +50,8 @@ concatenation <- repetition (c_wsp+ repetition)*
 repetition    <- repeat? element
                  { fun (r, e) -> match r with None -> e | Some r -> Repeat (r,e)}
 
-repeat        <- DIGITS { fun d -> CountRepeat d }
-               / < DIGIT* > "*" < DIGIT* >
+repeat        <- digitS { fun d -> CountRepeat d }
+               / < digit* > "*" < digit* >
                { fun (d1, d2) ->
                    let d1 = 
                      if d1.lexeme = "" then None
@@ -68,77 +70,77 @@ group         <- "(" c_wsp* alternation c_wsp* ")"
 option        <- "[" c_wsp* alternation c_wsp* "]"
                  { fun a -> Option a }
 
-char_val      <- DQUOTE < ([\x20-\x21] / [\x23-\x7E])* > DQUOTE
-                 # quoted string of SP and VCHAR without DQUOTE
+char_val      <- dquote < ([\x20-\x21] / [\x23-\x7E])* > dquote
+                 # quoted string of sp and vchar without dquote
                  { fun str -> Literal str.lexeme }
 
 num_val       <- "%" (bin_val / dec_val / hex_val)
 
-bin_val       <- "b" ( BITS "-"  BITS { fun (b1, b2) -> Class [Range (b1, b2)] }
-                     / BITS ( "." BITS)* 
+bin_val       <- "b" ( bitS "-"  bitS { fun (b1, b2) -> Class [Range (b1, b2)] }
+                     / bitS ( "." bitS)* 
                        {fun (b1, bs) -> 
                             Class (List.map (fun c -> Char c) (b1 :: bs))}
                      )
                  # series of concatenated bit values or single ONEOF range
 
-dec_val       <- "d" (DIGITS "-" DIGITS 
+dec_val       <- "d" (digitS "-" digitS 
                       { fun (d1, d2) -> Class [Range (d1, d2)] }
-                     / DIGITS ("." DIGITS)*   
+                     / digitS ("." digitS)*   
                        { fun (d1, ds) -> 
                              Class (List.map (fun c -> Char c) (d1::ds)) }
                      )
 
 
-hex_val       <- "x" (HEXDIGS "-" HEXDIGS     
+hex_val       <- "x" (hexdigS "-" hexdigS     
                       { fun (h1, h2) -> Class [Range (h1, h2)] }
-                     / HEXDIGS ("." HEXDIGS)*  
+                     / hexdigS ("." hexdigS)*  
                        { fun (h1, hs) -> 
                              Class (List.map (fun c -> Char c) (h1::hs)) }
                      )
 
 prose_val     <- "<" < ([\x20-\x3D] / [\x3F-\x7E])* > ">"
-                 # bracketed string of SP and VCHAR without angles
+                 # bracketed string of sp and vchar without angles
                  # prose description, to be used as last resort
                  { fun p -> Prose p }
 
 
 # Core Rules
 
-ALPHA         <- [\x41-\x5A] / [\x61-\x7A]   
+alpha         <- [\x41-\x5A] / [\x61-\x7A]   
                  # A-Z / a-z
 
-BITS          <- < BIT+ > { fun bs -> int_of_string ("0b" ^ bs.lexeme) }
-BIT           <- "0" / "1"
+bitS          <- < bit+ > { fun bs -> int_of_string ("0b" ^ bs.lexeme) }
+bit           <- "0" / "1"
 
-CHAR          <- [\x01-\x7F]
+char          <- [\x01-\x7F]
                  # any 7-bit US-ASCII character, excluding NUL
 
-CR            <- [\x0D]
+cr            <- [\x0D]
                  # carriage return
 
-CRLF          <- CR LF
+crlf          <- cr lf
                  # Internet standard newline
 
-CTL           <- [\x00-\x1F] / [\x7F]
+ctl           <- [\x00-\x1F] / [\x7F]
                  # controls
 
-DIGITS        <- < DIGIT+ > { fun ds -> int_of_string ds.lexeme }
-DIGIT         <- [\x30-\x39]
+digitS        <- < digit+ > { fun ds -> int_of_string ds.lexeme }
+digit         <- [\x30-\x39]
                  # 0-9
 
-DQUOTE        <- [\x22]
+dquote        <- [\x22]
                  # " (Double Quote)
 
-HEXDIGS       <- < HEXDIG+ > { fun h -> int_of_string ("0x" ^ h.lexeme) }
-HEXDIG        <- DIGIT / "A" / "B" / "C" / "D" / "E" / "F"
+hexdigS       <- < hexdig+ > { fun h -> int_of_string ("0x" ^ h.lexeme) }
+hexdig        <- digit / "A" / "B" / "C" / "D" / "E" / "F"
 
-HTAB          <- [\x09]
+htab          <- [\x09]
                  # horizontal tab
 
-LF            <- [\x0A]
+lf            <- [\x0A]
                  # linefeed
 
-LWSP          <- (WSP / CRLF WSP)*
+lwsp          <- (wsp / crlf wsp)*
                  # Use of this linear-white-space rule
                  #  permits lines containing only white
                  #  space that are no longer legal in
@@ -149,14 +151,14 @@ LWSP          <- (WSP / CRLF WSP)*
                  #  headers and use with caution in
                  #  other contexts.
 
-OCTET         <- [\x00-\xFF]
+octet         <- [\x00-\xFF]
                  # 8 bits of data
 
-SP            <- [\x20]
+sp            <- [\x20]
 
-VCHAR         <- [\x21-\x7E]
+vchar         <- [\x21-\x7E]
                  # visible (printing) characters
 
-WSP           <- SP / HTAB
+wsp           <- sp / htab
                  # white space
 

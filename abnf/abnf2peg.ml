@@ -16,6 +16,6 @@ let () =
         printf "success\n";
         List.iter (fun (name, (defined_as, rule)) ->
           Printf.printf "%s <- %s\n\n"
-            (Abnf_lib.convert_name name.Kmb_lib.lexeme)
+            (Abnf_lib.convert_name name.Kmb_input.lexeme)
             (Kmb_grammar.string_of_token (Abnf_lib.make_peg rule))
         ) ast

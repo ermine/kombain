@@ -3,55 +3,55 @@
 open Kmb_grammar
 %}
 
-Grammar         <- Spacing Definition+ Spacing EndOfFile
-Definition      <- Spacing Number Rule
-Rule            <- Identifier Defined_as Expression
+grammar         <- spacing definition+ spacing endOfFile
+definition      <- spacing l_number rule
+rule            <- identifier defined_as expression
 
-Expression      <- Sequence (PIPE Sequence)*   {make_alternates }
-Sequence        <- (!(Number Identifier Defined_as) Disjunction)+
+expression      <- sequence (l_PIPE sequence)*   {make_alternates }
+sequence        <- (!(l_number identifier defined_as) disjunction)+
                    { fun s -> make_sequence (s, None)}
 
-Disjunction     <- Element '-' Spacing Element
+disjunction     <- element '-' spacing element
                    { fun (e1, e2) -> Sequence (PredicateNOT e2, e1) }
-                 / Element
+                 / element
 
-Element         <- Primary (STAR               { fun () v -> Star v }
-                           / PLUS              { fun () v -> Plus v }
-                           / QUESTION          { fun () v -> Opt v }
+element         <- primary (l_STAR               { fun () v -> Star v }
+                           / l_PLUS              { fun () v -> Plus v }
+                           / l_QUESTION          { fun () v -> Opt v }
                            )?
                    { fun (el, repeat) -> 
                        match repeat with None -> el | Some f -> f el }
 
-Primary         <- Identifier   { make_name }
-                 / OPEN Expression CLOSE
-                 / Literal 
-                 / Class 
+primary         <- identifier   { make_name }
+                 / l_OPEN expression l_CLOSE
+                 / l_literal 
+                 / l_class 
 
 # Lex
 
-Identifier      <- < [a-zA-Z]+ > Spacing
-Number          <- Spacing < '[' [0-9a-z]+ ']' > Spacing
-Literal         <- ( ["] (!["] Char)* ["]  Spacing
-                   / ['] (!['] Char)* ['] Spacing
-                   / Hex Spacing{ fun c -> [c]} )
-                    { make_literal }
-Class           <- "[^" (!"]" Range)* "]" Spacing
+identifier      <- < [a-zA-Z]+ > spacing
+l_number        <- spacing < '[' [0-9a-z]+ ']' > spacing
+l_literal       <- ( ["] (!["] l_char)* ["]  spacing
+                 / ['] (!['] l_char)* ['] spacing
+                 / l_hex spacing{ fun c -> [c]} )
+                  { make_literal }
+l_class         <- "[^" (!"]" range)* "]" spacing
                    { fun v -> Sequence (PredicateNOT (make_class v), Any) }
-                 / "["  (!"]" Range)* "]" Spacing     { make_class }
-Range           <- Hex '-' Hex           { fun (c1, c2) -> Range (c1, c2) }
-                 / Char '-' Char         { fun (c1, c2) -> Range (c1, c2) }
-                 / Char                  { fun c -> Char c }
-Hex             <- '#x' < [0-9a-fA-F]+ >       { make_hex_char }
-Char            <- < . >                       { make_char }
+                 / "["  (!"]" range)* "]" spacing     { make_class }
+range           <- l_hex '-' l_hex             { fun (c1, c2) -> Range (c1, c2) }
+                 / l_char '-' l_char           { fun (c1, c2) -> Range (c1, c2) }
+                 / l_char                      { fun c -> Char c }
+l_hex           <- '#x' < [0-9a-fA-F]+ >       { make_hex_char }
+l_char          <- < . >                       { make_char }
 
 
-Defined_as      <- "::=" Spacing
-QUESTION        <- '?' Spacing
-PLUS            <- '+' Spacing
-STAR            <- '*' Spacing
-PIPE            <- '|' Spacing
-OPEN            <- '(' Spacing
-CLOSE           <- ')' Spacing
-Spacing         <- [\r\n\t ]*
-EndOfFile       <- !.
+defined_as      <- "::=" spacing
+l_QUESTION        <- '?' spacing
+l_PLUS          <- '+' spacing
+l_STAR          <- '*' spacing
+l_PIPE          <- '|' spacing
+l_OPEN          <- '(' spacing
+l_CLOSE         <- ')' spacing
+spacing         <- [\r\n\t ]*
+endOfFile       <- !.
 
