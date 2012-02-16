@@ -226,13 +226,13 @@ b-comment
 [95] ns-global-tag-prefix ::= ns-tag-char ns-uri-char*
 
 [96] c-ns-properties(n,c) ::= ( c-ns-tag-property
-( s-separate(n,c) c-ns-anchor-property )? )
-| ( c-ns-anchor-property
-( s-separate(n,c) c-ns-tag-property )? )
+                              ( s-separate(n,c) c-ns-anchor-property )? )
+                              | ( c-ns-anchor-property
+                              ( s-separate(n,c) c-ns-tag-property )? )
 
 [97] c-ns-tag-property ::= c-verbatim-tag
-| c-ns-shorthand-tag
-| c-non-specific-tag
+                           | c-ns-shorthand-tag
+                           | c-non-specific-tag
 
 [98] c-verbatim-tag ::= "!" "<" ns-uri-char+ ">"
 

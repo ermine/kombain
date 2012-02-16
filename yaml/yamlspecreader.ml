@@ -26,7 +26,7 @@ let () =
               match rule with
                 | Rule (name, expr) ->
                   fprintf out "%s <- %s\n\n" name
-                    (string_of_token (convert_token expr));
+                    (string_of_token expr);
                   num
                 | RuleFun _ ->
                   num

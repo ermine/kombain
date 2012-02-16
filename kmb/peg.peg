@@ -46,8 +46,13 @@ primary		<- ident !l_leftarrow       { make_name }
            / literal 
 		       / l_class 
 		       / l_dot
+           / action
 		       / l_leftangle expression l_rightangle   { make_tokenizer }
            / < l_leftangle >                       { unmatched }
+
+action    <- "<:" spacing < (!"<" .)+ > 
+             l_leftangle expression (l_comma expression)* l_rightangle
+             { fun (l, (e1, es)) -> Action (l, (e1::es)) }
 
 
 # Lexical syntax
@@ -98,3 +103,4 @@ l_transform'    <- '{' (l_transform' / !'}' .)* '}'
 l_leftangle	  <- '<' spacing
 l_rightangle	<- '>' spacing
 l_at          <- '@' spacing
+l_comma       <- "," spacing

@@ -1,11 +1,15 @@
 # It parses XML EBNF
 %{
 open Kmb_grammar
+open Kmb_input
+
+let make_name l = make_name { l with lexeme = "xml_" ^ l.lexeme }
 %}
 
 grammar         <- spacing definition+ spacing endOfFile
 definition      <- spacing l_number rule
 rule            <- identifier defined_as expression
+                   { fun (i, e) -> {i with lexeme = "xml_" ^ i.lexeme}, e }
 
 expression      <- sequence (l_PIPE sequence)*   {make_alternates }
 sequence        <- (!(l_number identifier defined_as) disjunction)+

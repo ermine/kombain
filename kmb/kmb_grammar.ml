@@ -1,9 +1,12 @@
 
-open Camlp4.PreCast
-  
 open Kmb_input
 open Kmb_lib
 open Printf
+
+(*
+open Camlp4.PreCast
+module PCaml = Camlp4.Printers.OCaml.Make(Syntax)
+*)  
 
 exception Error of string
 
@@ -17,7 +20,7 @@ type token =
   | Literal of int list
   | Class of class_t list
   | Transform of lexeme * token
-  | Action of Ast.expr * token list
+  | Action of lexeme * token list
   | Any
   | Tokenizer of token
   | Opt of token
@@ -51,6 +54,14 @@ let string_of_range c =
   else
     string_of_char c
         
+
+(*
+let string_of_code arg =
+  let o = new PCaml.printer () in
+    o#expr Format.str_formatter arg;
+    Buffer.contents Format.stdbuf
+*)
+
 let rec string_of_token = function
   | Epsilon -> ""
   | Name name -> name
@@ -77,8 +88,17 @@ let rec string_of_token = function
   | Any -> "."
   | Transform (fn, t) ->
     sprintf "%s { %s }" (string_of_token t) fn.lexeme
-  | Action (expr, tokens) ->
-    "Action AST"
+  | Action (f, tokens) ->
+    let args =
+      match tokens with
+        | [] -> assert false
+        | [t] -> string_of_token t
+        | t :: ts ->
+          List.fold_left (fun str t ->
+            sprintf "%s, %s" str (string_of_token t))
+            (string_of_token t) ts
+    in
+      sprintf "<:%s<%s>>" f.lexeme args
   | Tokenizer t ->
     sprintf "< %s >" (string_of_token t)
   

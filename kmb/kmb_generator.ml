@@ -22,8 +22,12 @@ let rec should_export rules names = function
               false
   )
   | Transform _ -> true
-  | Action (_, ts) ->
-    List.fold_left (fun flag t -> flag && should_export rules names t) true ts
+  | Action (_, tokens) ->
+    let rec any = function
+      | [] -> false
+      | t :: ts -> if should_export rules names t then true else any ts
+    in
+      any tokens
   | Tokenizer _ -> true
   | Pattern (_, expr) -> should_export rules names expr
   | PredicateNOT _ -> false
@@ -91,11 +95,18 @@ let rec make_rule_expr _loc rules names = function
         $code_expr$
       >>
 
-  | Action (expr, ts) ->
-    List.fold_left
-      (fun expr t -> <:expr< $expr$ $make_rule_expr _loc rules names t$ >>)
-      expr ts
-        
+  | Action ({Kmb_input.start = (line, col); lexeme = code}, tokens) ->
+    let code_expr =
+      try Caml.AntiquotSyntax.parse_expr Loc.ghost code
+      with exn ->
+        printf "Bad action %d:%d %S\n" line col code;
+        printf "Exception: %s\n" (Printexc.to_string exn);
+        Pervasives.exit 1
+    in
+      List.fold_left (fun expr arg ->
+        <:expr<$expr$ $make_rule_expr _loc rules names arg$ >>)
+        code_expr tokens
+    
   | Opt t ->
     let export = should_export rules names t in
       if export then
@@ -175,8 +186,20 @@ let generate verbose declaration rules output_file =
           make_rule_function _loc verbose name expr rules :: acc) acc simples
       | Recursive rs ->
         let bs = List.map (fun (name, expr) ->
-          <:binding< $lid:name$ input =
-            $make_rule_expr _loc rules [name] expr$ input >>) rs in
+          printf "Generating for rule %s\n" name;
+          if verbose then
+            <:binding< $lid:name$ input =
+            Printf.printf "Trying %s..." $str:name$;
+            match $make_rule_expr _loc rules [name] expr$ input with
+              | Parsed _ as result ->
+                Printf.printf "Success %s\n" $str:name$; result
+              | Failed as result ->
+                Printf.printf "Failed %s\n" $str:name$; result
+                >>
+          else
+            <:binding< $lid:name$ input =
+            $make_rule_expr _loc rules [name] expr$ input >>
+        ) rs in
           <:str_item< let rec $Ast.biAnd_of_list bs$ >> :: acc
     ) [] sorted
   in

@@ -1,4 +1,5 @@
 open Printf
+open Kmb_input
 
 type target =
     Src of string * string option

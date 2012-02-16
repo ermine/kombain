@@ -485,8 +485,24 @@ let () =
           (fun env _ ->
             let peg = env "%.peg"
             and code = env "%_parser.ml" in
-              Cmd (S[ Px"kmb/kombain.byte"; A peg; A code])
+              Cmd (S[ Px"kmb/kombain.byte"; A peg; A code]));
+
+        rule "make xml.peg"
+          ~prod:"xml/xml.peg"
+          ~deps:["xml/xml1.0.bnf"; "xml/xmlebnfreader.byte"]
+          (fun _ _ ->
+            Cmd (S[ Px"xml/xmlebnfreader.byte"; 
+                    A"xml/xml1.0.bnf"; A"xml/xml.peg"])
+          );
+
+        rule "make yaml.peg"
+          ~prod:"yaml/yaml.peg"
+          ~deps:["yaml/yaml.bnf"; "yaml/yamlspecreader.byte"]
+          (fun _ _ ->
+            Cmd (S[Px"yaml/yamlspecreader.byte"; A"yaml/yaml.bnf";
+                   A"yaml/yaml.peg"])
           )
+          
       | _ -> ()
     );
   )
