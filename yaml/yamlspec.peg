@@ -10,7 +10,7 @@ let na = 0 (* shoild fail *)
 
 grammar         <- spacing definition+ spacing  endOfFile
 
-definition      <- number nameFun defined_as expressionFun
+definition      <- number func_decl defined_as expressionFun
                    { fun (m, (n, expr)) -> (m, RuleFun (n, expr)) }
                  / number name defined_as expression
                    { fun (m, (n, expr)) -> (m, Rule (n, expr)) }
@@ -21,47 +21,34 @@ case_expr       <- name l_EQ elementFun
 case            <- (case_expr spacing
                    / primary spacing { fun p -> Peg p }
                    / { fun () -> Peg Epsilon })
-                    l_ARROW (case_expr / sequenceFun) spacing
+                    l_ARROW (case_expr / sequence) spacing
 expressionFun  <- case+   { fun cs -> Cases cs }
-                / sequenceFun
+                / sequence { fun s -> Peg s }
 
-sequenceFun    <- elementFun* (l_PIPE elementFun*)*   { alt_f }
+expression      <- sequence (l_PIPE sequence)*   { make_alternates }
 
-elementFun      <- name " * " var spacing 
+sequence        <- element*             { fun s -> make_sequence (s, None) }
+
+element         <- name " * " var spacing 
                    { fun (s, t) -> 
                        Peg (Action ({start = (0,0); stop = (0,0);
                                             lexeme = Printf.sprintf 
                                                            "repeat true %s" t},
                                             [Name s])) }
                  / name " *< " var spacing
-                   { fun (s, t) -> TimesLT (Peg (Name s), t) }
+                   { fun (s, t) -> Function ("repeat",  [Value ("bool", "false");
+                                                         Value ("int", t);
+                                                         Ident s]) }
+
                  / name " *=< " var spacing
-                   { fun (s, t) -> TimesLE (Peg (Name s), t) }
-                 / primaryFun ( l_STAR      { fun () v -> Yamlspec_types.Star v }
-                              / l_PLUS      { fun () v -> Yamlspec_types.Plus v }
-                              / l_QUESTION  { fun () v -> Yamlspec_types.Opt v }
-                              )? spacing
-                   { fun (el, repeat) -> 
-                       match repeat with 
-                        | None -> el
-                        | Some f -> f el
-                   }
+                   { fun (s, t) -> Function ("repeat", [Value ("bool", "false");
+                                                        Value ("int", t);
+                                                        Ident s]) }
 
-                 / element { fun e -> Peg e }
-
-primaryFun      <- func { fun (n, ps) -> Function (n, ps) }
-                 / l_OPEN sequenceFun l_CLOSE
-
-expression      <- sequence (l_PIPE sequence)*   { make_alternates }
-
-sequence         <- element*             { fun s -> make_sequence (s, None) }
-
-element         <- name " * " digits spacing 
-                   { fun (s, t) -> Action ({start = (0,0); stop = (0,0);
-                                            lexeme = Printf.sprintf 
-                                                           "repeat true %d" t},
-                                            [Name s]) }
-
+                 /  name " * " digits spacing 
+                   { fun (s, t) -> Function ("repeat", [Value ("bool", "true");
+                                                        Value ("int", t);
+                                                        Ident s]) }
                  / rejection
                  / primary (l_STAR               { fun () v -> Star v }
                            / l_PLUS              { fun () v -> Plus v }
@@ -72,7 +59,8 @@ element         <- name " * " digits spacing
 
 rejection       <- primary (" - " primary)+ spacing   { make_reject }
 
-primary         <- name !l_EQ { fun n -> Name n }
+primary         <- func { fun (name, ps) -> Function (name, ps) }
+                 / name !l_EQ { fun n -> Name n }
                  / l_OPEN expression l_CLOSE
                  / l_literal
                  / l_class 
@@ -83,16 +71,15 @@ space           <- " "
 number          <- space* '[' < [0-9a-z]+ > ']' space*
 identifier      <- < [a-zA-Z0-9] [a-zA-Z0-9\-+]* > 
 name            <- identifier { fun v -> v.lexeme }
-nameFun         <- name l_OPEN simpleParams l_CLOSE   
-simpleParams    <- name (l_COMMA name)* { fun (s1, s2) -> s1 :: s2 }
 
+func_decl       <- name l_OPEN name (l_COMMA name)* l_CLOSE
+                   { fun (n, (p, ps)) -> (n, p :: ps) }
 func            <- name l_OPEN params? l_CLOSE
                    { fun (n, ps) -> match ps with None -> (n, [])
                                                 | Some ps -> (n, ps) }
-param           <- func  { fun (n, ps) -> Fn (n, ps) }
-                 / name { fun n -> N n}
-                 / < "-">? digits { fun (s, ds) -> match s with None -> Number ds 
-| Some _ -> Number (- ds) }
+param           <- func  { fun (n, ps) -> Func (n, ps) }
+                 / name { fun n -> Ident n}
+                 / digits { fun ds -> Value ("int", ds) }
 params          <- param (l_COMMA param)* { fun (v, vs) -> v :: vs }
 
 var             <- < [a-z] > { fun v -> v.lexeme }
@@ -122,7 +109,7 @@ newLine         <- [\r]? [\n]
 comment         <- "/*" (!"*/" .)* "*/"
 spacing         <- (comment / space / newLine)*
 endOfFile       <- !.
-digits           <- < [0-9]+ > { fun ds -> int_of_string ds.lexeme }
+digits           <- < '-'? [0-9]+ > { fun ds -> ds.lexeme }
 l_EQ            <- " = "
 l_ARROW        <- "=> "
 value          <- < [a-zA-z] [a-zA-Z\-]* > { fun v -> v.lexeme }

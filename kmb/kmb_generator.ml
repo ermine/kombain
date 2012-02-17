@@ -49,6 +49,20 @@ let rec make_rule_expr _loc rules names = function
   | Name name ->
     <:expr< $lid:name$ >>
 
+  | Function (name, params) ->
+    let rec aux_function = function
+      | [] -> <:expr< () >>
+      | ps ->
+        let make_arg = function
+          | Ident id -> <:expr< $lid:id$ >>
+          | Unit -> <:expr< () >>
+          | Func (name, ps) -> <:expr< $lid:name$ $aux_function ps$ >>
+        in
+          List.fold_right (fun arg args -> <:expr< $make_arg arg$ $args$ >>) ps
+            <:expr< >>
+    in
+      <:expr< $lid:name$ $aux_function params$>>
+
   | Sequence (Pattern (name, expr), xs) ->
     let rules = (name, Epsilon) :: rules in
       <:expr< fun input ->

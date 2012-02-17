@@ -2,24 +2,13 @@ open Camlp4.PreCast
 
 open Kmb_lib
   
-type param =
-  | Fn of string * param list
-  | N of string
-  | Number of int
-
 type tokenf =
   | Peg of Kmb_grammar.token
-  | Function of string * param list
   | TimesVar of tokenf * string
   | Times of tokenf * int
   | TimesLT of tokenf * string
-  | TimesLE of tokenf * string
   | Cases of (tokenf * tokenf) list
   | Cmp of string * tokenf
-  | Alt of tokenf list * tokenf list list
-  | Plus of tokenf
-  | Opt of tokenf
-  | Star of tokenf
 
 type rule =
   | Rule of string * Kmb_grammar.token
@@ -75,5 +64,3 @@ let rec peg_of_extension = function
 
     *)
 
-let alt_f (s1, s2) =
-  Alt (s1, s2)

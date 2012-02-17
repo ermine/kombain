@@ -14,9 +14,17 @@ type class_t =
   | Char of int
   | Range of int * int
 
+type parameter =
+  | Ident of string
+  | Value of string * string
+  | Func of string * parameter list
+(*  | Collection of string * parameter list *)
+  | Unit
+
 type token =
   | Epsilon
   | Name of string
+  | Function of string * parameter list
   | Literal of int list
   | Class of class_t list
   | Transform of lexeme * token
