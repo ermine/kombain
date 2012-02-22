@@ -28,6 +28,11 @@ Executable markdown_test
   MainIs:	markdown_test.ml
   BuildDepends:	kmb
 
+Executable textile_test
+  Path:		textile
+  MainIs:	textile_test.ml
+  BuildDepends: kmb
+
 Executable bbcode_test
   Path:		bbcode
   MainIs:	bbcode_test.ml

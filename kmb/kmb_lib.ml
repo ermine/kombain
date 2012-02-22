@@ -165,3 +165,11 @@ let plus_accu cond input =
     (fun (r1, r2) -> r1 :: r2)
     input
 
+let match_result p value input =
+  match p input with
+    | Parsed r, input as ok ->
+      if r = value then
+        ok
+      else
+        Failed
+    | Failed as failed -> failed

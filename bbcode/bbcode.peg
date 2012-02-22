@@ -1,4 +1,4 @@
-# bBCode PEG Grammar based on https://github.com/AlainODea/mod_experimental
+# bBCode PEG based on https://github.com/AlainODea/mod_experimental
 
 %{
 open Kmb_lib

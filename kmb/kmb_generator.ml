@@ -22,12 +22,6 @@ let rec should_export rules names = function
               false
   )
   | Transform _ -> true
-  | Action (_, tokens) ->
-    let rec any = function
-      | [] -> false
-      | t :: ts -> if should_export rules names t then true else any ts
-    in
-      any tokens
   | Tokenizer _ -> true
   | Pattern (_, expr) -> should_export rules names expr
   | PredicateNOT _ -> false
@@ -109,18 +103,6 @@ let rec make_rule_expr _loc rules names = function
         $code_expr$
       >>
 
-  | Action ({Kmb_input.start = (line, col); lexeme = code}, tokens) ->
-    let code_expr =
-      try Caml.AntiquotSyntax.parse_expr Loc.ghost code
-      with exn ->
-        printf "Bad action %d:%d %S\n" line col code;
-        printf "Exception: %s\n" (Printexc.to_string exn);
-        Pervasives.exit 1
-    in
-      List.fold_left (fun expr arg ->
-        <:expr<$expr$ $make_rule_expr _loc rules names arg$ >>)
-        code_expr tokens
-    
   | Opt t ->
     let export = should_export rules names t in
       if export then

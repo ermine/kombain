@@ -2,17 +2,14 @@ open Camlp4.PreCast
 
 open Kmb_lib
   
-type tokenf =
-  | Peg of Kmb_grammar.token
-  | TimesVar of tokenf * string
-  | Times of tokenf * int
-  | TimesLT of tokenf * string
-  | Cases of (tokenf * tokenf) list
-  | Cmp of string * tokenf
 
-type rule =
-  | Rule of string * Kmb_grammar.token
-  | RuleFun of (string * string list) * tokenf
+type tokenf =
+  | Peg of token
+  | Cmp of string * token
+      
+type casemap =
+  | Match of (string * string * tokenf) list
+  | Indicator of (token * tokenf) list
 
 let rec repeat fail n symbol input =
   if n = 0 then
@@ -26,41 +23,8 @@ let make_reject (t, ts) =
   List.fold_right (fun t acc ->
     Kmb_grammar.Sequence (Kmb_grammar.PredicateNOT t, acc)) ts t
 
-let rec peg_of_extension = function
-  | Peg t -> t
-
-  | Times (t, n) ->
-    Kmb_grammar.Action ({Kmb_input.start = (0,0); stop = (0,0);
-                         lexeme = Printf.sprintf "repeat true %d" n},
-                        [peg_of_extension t])
-      
-  | _ -> failwith "functional things"
-
-(*    
-
-  | TimesVar (t, n) ->
-      Kmb_grammar.Action (<:expr< repeat true $lid:n$ >>, [convert_token t])
-
-
-  | TimesLT (t, n) ->
-    let _loc = Loc.ghost in
-      Kmb_grammar.Action (<:expr< repeat false ($lid:n$ - 1) >>,
-                          [convert_token t])
-
-  | TimesLE (t, n) ->
-    let _loc = Loc.ghost in
-      Kmb_grammar.Action (<:expr< repeat false ($lid:n$ 1) >>,
-                          [convert_token t])
-
-  | Function (name, params) ->
-    let _loc = Loc.ghost in
-      Kmb_grammar.Action (
-        List.fold_left (fun acc p -> <:expr< $acc$ $lid:p$ >>)
-        <:expr< $lid:name$ >> params, [])
-
-  | Cases _ -> Kmb_grammar.Epsilon
-  | Cmp _ -> Kmb_grammar.Epsilon
-
-
-    *)
-
+let make_match data =
+  let e =
+    Ast.mcOr_of_list
+      List.map (fun ((_, str), expr) ->
+        <:match_case< $uid:String.uppercase str$ -> $

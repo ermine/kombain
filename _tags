@@ -11,7 +11,7 @@ true: debug
 
 
 # OASIS_START
-# DO NOT EDIT (digest: f35ccb0cb7fd378356f3edaf5f16cee6)
+# DO NOT EDIT (digest: a449f31862a8bc3f9ba0900e9025bf51)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -46,6 +46,9 @@ true: debug
 # Executable xmltest
 "xml/xmltest.byte": use_kmb
 <xml/*.ml{,i}>: use_kmb
+# Executable textile_test
+"textile/textile_test.byte": use_kmb
+<textile/*.ml{,i}>: use_kmb
 # Executable yamlspecreader
 "yaml/yamlspecreader.byte": use_kmb
 "yaml/yamlspecreader.byte": pkg_camlp4

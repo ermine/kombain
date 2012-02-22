@@ -11,19 +11,22 @@ let na = 0 (* shoild fail *)
 grammar         <- spacing definition+ spacing  endOfFile
 
 definition      <- number func_decl defined_as expressionFun
-                   { fun (m, (n, expr)) -> (m, RuleFun (n, expr)) }
+                   { fun (m, (n, expr)) -> (m, ParametrizedRule (n, expr)) }
                  / number name defined_as expression
                    { fun (m, (n, expr)) -> (m, Rule (n, expr)) }
 
+case_expr       <- name l_EQ ( name { fun n -> if n.[0] = 'b' then 
+                             / element { fun (n, el) -> Cmp (n, el) }
+                             )
 
-case_expr       <- name l_EQ elementFun 
-                   { fun (n, el) -> Cmp (n, el) }
 case            <- (case_expr spacing
                    / primary spacing { fun p -> Peg p }
                    / { fun () -> Peg Epsilon })
-                    l_ARROW (case_expr / sequence) spacing
-expressionFun  <- case+   { fun cs -> Cases cs }
-                / sequence { fun s -> Peg s }
+                    l_ARROW (case_expr / expression { fun e -> Peg e }) spacing
+
+expressionFun  <- case_match+       { fun cs -> Match cs }
+                / case_indicator+   { fun cs -> Indicator cs }
+                / expression        { fun e -> Peg e }
 
 expression      <- sequence (l_PIPE sequence)*   { make_alternates }
 
@@ -31,19 +34,20 @@ sequence        <- element*             { fun s -> make_sequence (s, None) }
 
 element         <- name " * " var spacing 
                    { fun (s, t) -> 
-                       Peg (Action ({start = (0,0); stop = (0,0);
-                                            lexeme = Printf.sprintf 
-                                                           "repeat true %s" t},
-                                            [Name s])) }
+                       Function ("repeat", [Value ("bool", "true");
+                                            Ident t;
+                                            Ident s]) }
                  / name " *< " var spacing
-                   { fun (s, t) -> Function ("repeat",  [Value ("bool", "false");
-                                                         Value ("int", t);
-                                                         Ident s]) }
+                   { fun (s, t) -> 
+                        Function ("repeat",  [Value ("bool", "false");
+                                              Func ("pred", [Ident t]);
+                                              Ident s]) }
 
                  / name " *=< " var spacing
-                   { fun (s, t) -> Function ("repeat", [Value ("bool", "false");
-                                                        Value ("int", t);
-                                                        Ident s]) }
+                   { fun (s, t) -> 
+                       Function ("repeat", [Value ("bool", "false");
+                                            Ident  t;
+                                            Ident s]) }
 
                  /  name " * " digits spacing 
                    { fun (s, t) -> Function ("repeat", [Value ("bool", "true");

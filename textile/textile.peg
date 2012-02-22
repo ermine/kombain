@@ -1,0 +1,34 @@
+# http://redcloth.org/textile
+%{
+open Kmb_input
+open Textile_lib
+%}
+
+document        <- blankLine* block* blankLine* endOfFile
+
+block           <- preformatted / paragraph
+
+inline          <- squoted / breakLine / string / ddash / dash
+
+preformatted    <- "<pre>" newLine < (!"</pre>" .)+ > "</pre>" newLine blankLine+
+                   { fun data -> Preformatted data.lexeme }
+
+paragraph       <- ("p." space+)? inline* newLine blankLine*
+                   { fun inlines -> Paragraph inlines }
+
+squoted         <- ['] !space !newLine < (!(sp newLine [']) .)* > ['] 
+                   { fun str -> SQuoted str.lexeme }
+
+string          <- < (!blankLine !special .)+ > { fun str -> String str.lexeme }
+breakLine       <- newLine !blankLine { fun () -> BreakLine }
+ddash           <- "--" { fun () -> DDash }
+dash            <- "-" { fun () -> Dash }
+
+anyLine         <- (!newLine !endOfFile .)+
+
+special         <- ['\-]
+space           <- [ \t]
+sp              <- space*
+blankLine       <- sp newLine
+newLine         <- '\n' / '\r' '\n'?
+endOfFile       <- !.

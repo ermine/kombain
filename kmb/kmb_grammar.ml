@@ -28,7 +28,6 @@ type token =
   | Literal of int list
   | Class of class_t list
   | Transform of lexeme * token
-  | Action of lexeme * token list
   | Any
   | Tokenizer of token
   | Opt of token
@@ -39,6 +38,10 @@ type token =
   | Sequence of token * token
   | Alternate of token * token
   | Pattern of string * token
+
+type rule =
+  | Rule of string * token
+  | ParametrizedRule of (string * string list) * token
 
 let string_of_char c =
   if c < 255 then
@@ -61,7 +64,6 @@ let string_of_range c =
       | _ -> string_of_char c
   else
     string_of_char c
-        
 
 (*
 let string_of_code arg =
@@ -70,9 +72,30 @@ let string_of_code arg =
     Buffer.contents Format.stdbuf
 *)
 
+let rec string_of_params = function
+  | [] -> ""
+  | p :: ps ->
+    let string_of_param = function
+      | Ident n -> n
+      | Value (t, v) -> (
+        match t with
+          | "bool" -> v
+          | "string" -> "\"" ^ String.escaped v ^ "\""
+          | "int" -> v
+          | _ -> failwith "unknown value type"
+      )
+      | Func (name, ps) ->
+        name ^ "(" ^ string_of_params ps ^ ")"
+    in
+      List.fold_left (fun acc p ->
+        acc ^ "," ^ string_of_param p
+      ) (string_of_param p) ps
+
 let rec string_of_token = function
   | Epsilon -> ""
   | Name name -> name
+  | Function (name, ps) ->
+    sprintf "%s(%s)" name (string_of_params ps)
   | Literal cs ->
     sprintf "\"%s\"" (String.concat "" (List.map string_of_char cs))
   | Class cs ->
@@ -96,20 +119,20 @@ let rec string_of_token = function
   | Any -> "."
   | Transform (fn, t) ->
     sprintf "%s { %s }" (string_of_token t) fn.lexeme
-  | Action (f, tokens) ->
-    let args =
-      match tokens with
-        | [] -> assert false
-        | [t] -> string_of_token t
-        | t :: ts ->
-          List.fold_left (fun str t ->
-            sprintf "%s, %s" str (string_of_token t))
-            (string_of_token t) ts
-    in
-      sprintf "<:%s<%s>>" f.lexeme args
   | Tokenizer t ->
     sprintf "< %s >" (string_of_token t)
   
+let string_of_rule = function
+  | Rule (name, expr) ->
+    sprintf "%s <- %s\n\n" name (string_of_token expr)
+  | ParametrizedRule ((name, params), expr) ->
+    let args =
+      match params with
+        | [] -> ""
+        | p :: ps -> List.fold_left (fun acc p -> acc ^ "," ^ p) p ps
+    in
+      sprintf "%s(%s) <- %s\n\n" name args (string_of_token expr)
+
 let make_declaration {lexeme} = lexeme
 
 let make_name {lexeme} = Name lexeme
