@@ -11,7 +11,15 @@ let () =
     match result with
       | Failed ->
         Printf.printf "failed";
-      | Parsed ((dcl, ast), rest) ->
-        List.iter (fun (name, rule) ->
-          Printf.printf "%s <- %s\n\n" name (string_of_token rule)) ast;
-        Kmb_generator.generate true dcl ast Sys.argv.(2)
+      | Parsed ((dcl, (start, ast)), rest) ->
+        List.iter (fun rule ->
+          Printf.printf "%s\n\n" (string_of_rule rule)) ast;
+        let start_rule =
+          match start with
+            | Some name -> name.lexeme
+            | None ->
+              match ast with
+                | [] -> assert false
+                | ((name, _), _) :: _ -> name
+        in
+          Kmb_generator.generate true dcl ast start_rule Sys.argv.(2)

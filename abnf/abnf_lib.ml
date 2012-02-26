@@ -87,7 +87,7 @@ let rec make_peg = function
                   aux_min r (min - 1)
 
   )
-  | Name name -> Kmb_grammar.Name (convert_name name)
+  | Name name -> Kmb_grammar.Name ((convert_name name), [])
   | Option e -> Kmb_grammar.Opt (make_peg e)
   | Literal str ->
     let len = String.length str in

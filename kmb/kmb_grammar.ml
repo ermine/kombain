@@ -19,12 +19,10 @@ type parameter =
   | Value of string * string
   | Func of string * parameter list
 (*  | Collection of string * parameter list *)
-  | Unit
 
 type token =
   | Epsilon
-  | Name of string
-  | Function of string * parameter list
+  | Name of string * parameter list
   | Literal of int list
   | Class of class_t list
   | Transform of lexeme * token
@@ -39,10 +37,6 @@ type token =
   | Alternate of token * token
   | Pattern of string * token
 
-type rule =
-  | Rule of string * token
-  | ParametrizedRule of (string * string list) * token
-
 let string_of_char c =
   if c < 255 then
     match Char.chr c with
@@ -51,6 +45,7 @@ let string_of_char c =
       | '\b' -> "\\b"
       | '\t' -> "\\t"
       | '"' -> "\\\""
+      | '\\' -> "\\\\"
       | c -> String.make 1 c
   else
     sprintf "\\x%X" c
@@ -91,13 +86,28 @@ let rec string_of_params = function
         acc ^ "," ^ string_of_param p
       ) (string_of_param p) ps
 
+
+let string_of_literal cs =
+  String.concat "" (List.map string_of_char cs)
+                   
+let is_simple_token = function
+  | Any
+  | Name _
+  | Class _
+  | Literal _
+  | Tokenizer _
+  | Transform _ -> true
+  | _ -> false
+
 let rec string_of_token = function
   | Epsilon -> ""
-  | Name name -> name
-  | Function (name, ps) ->
-    sprintf "%s(%s)" name (string_of_params ps)
+  | Name (name, params) ->
+    if params = [] then
+      name
+    else
+      sprintf "%s(%s)" name (string_of_params params)
   | Literal cs ->
-    sprintf "\"%s\"" (String.concat "" (List.map string_of_char cs))
+    sprintf "\"%s\"" (string_of_literal cs)
   | Class cs ->
     List.fold_left (fun str -> function
       | Range (c1, c2) ->
@@ -105,37 +115,72 @@ let rec string_of_token = function
       | Char c ->
         sprintf "%s%s" str (string_of_range c)
     ) "[" cs ^ "]"
-  | PredicateNOT t -> "!" ^ string_of_token t
-  | PredicateAND t -> "&" ^ string_of_token t
-  | Opt t -> string_of_token t ^ "?"
-  | Star t -> string_of_token t ^ "*"
-  | Plus t -> string_of_token t ^ "+"
-  | Sequence (s1, s2) ->
-    sprintf "(%s %s)" (string_of_token s1) (string_of_token s2)
+  | PredicateNOT t ->
+    if is_simple_token t then
+      "!" ^ string_of_token t
+    else
+      sprintf "!(%s)" (string_of_token t)
+  | PredicateAND t ->
+    if is_simple_token t then
+      "&" ^ string_of_token t
+    else
+      sprintf "&(%s)" (string_of_token t)
+  | Opt t ->
+    if is_simple_token t then
+      string_of_token t ^ "?"
+    else
+      sprintf "(%s)?" (string_of_token t)
+  | Star t ->
+    if is_simple_token t then
+      string_of_token t ^ "*"
+    else
+      sprintf "(%s)*" (string_of_token t)
+  | Plus t ->
+    if is_simple_token t then
+       string_of_token t ^ "+"
+    else
+      sprintf "(%s)+" (string_of_token t)
+  | Sequence (s1, s2) -> (
+    match s1, s2 with
+      | Alternate _, Alternate _ ->
+        sprintf "(%s) (%s)" (string_of_token s1) (string_of_token s2)
+      | Alternate _, _ ->
+        sprintf "(%s) %s" (string_of_token s1) (string_of_token s2)
+      | _, Alternate _ ->
+        sprintf "%s (%s)" (string_of_token s1) (string_of_token s2)
+      | _, _ ->
+        sprintf "%s %s" (string_of_token s1) (string_of_token s2)
+  )      
   | Alternate (a1, a2) ->
-    sprintf "(%s / %s)" (string_of_token a1) (string_of_token a2)
+    sprintf "%s / %s" (string_of_token a1) (string_of_token a2)
   | Pattern (name, t) ->
-    sprintf "%s@%s" name (string_of_token t)
+    if is_simple_token t then
+      sprintf "%s@%s" name (string_of_token t)
+    else
+      sprintf "%s@(%s)" name (string_of_token t)
   | Any -> "."
   | Transform (fn, t) ->
     sprintf "%s { %s }" (string_of_token t) fn.lexeme
   | Tokenizer t ->
-    sprintf "< %s >" (string_of_token t)
+    sprintf "< %s >" (string_of_token t)      
   
-let string_of_rule = function
-  | Rule (name, expr) ->
-    sprintf "%s <- %s\n\n" name (string_of_token expr)
-  | ParametrizedRule ((name, params), expr) ->
+let string_of_rule ((name, params), expr) =
+  if params = [] then
+    sprintf "%s <- %s" name (string_of_token expr)
+  else
     let args =
       match params with
         | [] -> ""
         | p :: ps -> List.fold_left (fun acc p -> acc ^ "," ^ p) p ps
     in
-      sprintf "%s(%s) <- %s\n\n" name args (string_of_token expr)
+      sprintf "%s(%s) <- %s" name args (string_of_token expr)
 
 let make_declaration {lexeme} = lexeme
 
-let make_name {lexeme} = Name lexeme
+let make_name {lexeme} = Name (lexeme, [])
+
+let make_definition ({lexeme}, expr) =
+  (lexeme, expr)
 
 let make_char {lexeme} =
   Char.code lexeme.[0]
@@ -200,9 +245,6 @@ let make_prefix (f, s) =
     | None -> s
     | Some f -> f s
 
-let make_definition ({lexeme}, expr) =
-  (lexeme, expr)
-
 let unmatched {start = (line, col) ; lexeme} =
   raise (Error (sprintf "Unmatched %S at line %d col %d" lexeme line col))
 
@@ -210,7 +252,7 @@ let invalid_char {start = (line, col); lexeme} =
   raise (Error (sprintf "Invalid char %S at line %d col %d" lexeme line col))
 
 let rec is_productive known = function
-  | Name name -> List.mem name known
+  | Name (name, params) -> List.mem name known
   | Class _ -> true
   | Literal _ -> true
   | Any -> true
@@ -232,11 +274,11 @@ let rec is_productive known = function
 let simple_productive known rules =
   let rec aux_rearrange result known rest =
     let sorted, known, unsorted =
-      List.fold_left (fun (acc, known, unsorted) (name, expr) ->
+      List.fold_left (fun (acc, known, unsorted) ((name, params), expr) ->
         if is_productive known expr then
-          (name, expr) :: acc, name :: known, unsorted
+          ((name, params), expr) :: acc, name :: known, unsorted
         else
-          acc, known, (name, expr) :: unsorted
+          acc, known, ((name, params), expr) :: unsorted
       ) (result, known, []) rest in
       if sorted = result then
         List.rev result, known, List.rev unsorted
@@ -246,8 +288,8 @@ let simple_productive known rules =
     aux_rearrange [] known rules
 
 type productive =
-  | Simple of (string * token) list
-  | Recursive of (string * token) list
+  | Simple of ((string * string list) * token) list
+  | Recursive of ((string * string list) * token) list
 
 
 let rearrange_grammar rules =

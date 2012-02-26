@@ -143,14 +143,24 @@ let alt a b input =
 
 
 let rec star cond input =
-  match cond input with
-    | Parsed (_, input) -> star cond input
-    | Failed -> Parsed ((), input)
+  let curr_pos = input.pos in
+    match cond input with
+      | Parsed (_, input) ->
+        if curr_pos = input.pos then
+          Parsed ((), input)
+        else
+          star cond input
+      | Failed -> Parsed ((), input)
 
 let star_accu cond input =
+  let curr_pos = input.pos in
   let rec aux_star acc input =
     match cond input with
-      | Parsed (r, input) -> aux_star (r :: acc) input
+      | Parsed (r, input) ->
+        if curr_pos = input.pos then (* TODO need to think *)
+          Parsed (r :: acc, input)
+        else
+          aux_star (r :: acc) input
       | Failed -> Parsed (List.rev acc, input)
   in
     aux_star [] input
@@ -164,12 +174,3 @@ let plus_accu cond input =
   transform (seq_b cond (star_accu cond))
     (fun (r1, r2) -> r1 :: r2)
     input
-
-let match_result p value input =
-  match p input with
-    | Parsed r, input as ok ->
-      if r = value then
-        ok
-      else
-        Failed
-    | Failed as failed -> failed

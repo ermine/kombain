@@ -307,7 +307,7 @@ and def_expression input =
           
 let def_definition input =
   seq_b
-    (transform def_identifier (fun {lexeme} -> lexeme))
+    (transform def_identifier (fun {lexeme} -> lexeme, []))
     (seq_r leftarrow def_expression) input
 
 let dcl_start input =
@@ -356,6 +356,6 @@ let _ =
   let grammar_file = Sys.argv.(1) in
   let output_file = Sys.argv.(2) in
   let (declaration, rules), rest = parse_file grammar_file in
-    List.iter (fun (name, rule) ->
+    List.iter (fun ((name, _), rule) ->
       Printf.printf "Rule %s <- %s\n\n" name (string_of_token rule)) rules;
-    Kmb_generator.generate false declaration rules output_file
+    Kmb_generator.generate false declaration rules "grammar" output_file

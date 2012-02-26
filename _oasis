@@ -56,5 +56,9 @@ Executable xmltest
 Executable yamlspecreader
   Path:		yaml
   MainIs:	yamlspecreader.ml
-  BuildDepends:	kmb, camlp4
- 
+  BuildDepends:	kmb
+
+Executable yaml_test
+  Path:		yaml
+  MainIs:	yaml_test.ml
+  BuildDepends:	kmb 

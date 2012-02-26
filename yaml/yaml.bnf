@@ -171,9 +171,7 @@
 
 [76] b-comment ::= b-non-content | /* End of file */
 
-[77] s-b-comment ::= ( s-separate-in-line c-nb-comment-text? )?
-
-b-comment
+[77] s-b-comment ::= ( s-separate-in-line c-nb-comment-text? )? b-comment
 
 [78] l-comment ::= s-separate-in-line c-nb-comment-text? b-comment
 
@@ -317,7 +315,7 @@ b-comment
 [129] ns-plain-safe-in ::= ns-char - c-flow-indicator
 
 [130] ns-plain-char(c) ::= ( ns-plain-safe(c) - ":" - "#" )
-                         | ( /* /* An ns-char preceding */ "#" )
+                         | ( /* An ns-char preceding */ "#" )
                          | ( ":" /* Followed by an ns-plain-safe(c) */ )
 
 [131] ns-plain(n,c) ::= c = flow-out => ns-plain-multi-line(n,c)
@@ -335,10 +333,12 @@ b-comment
 [135] ns-plain-multi-line(n,c) ::= ns-plain-one-line(c)
                                    s-ns-plain-next-line(n,c)*
 
+/*
 [136] in-flow(c) ::= c = flow-out => flow-in
                      c = flow-in => flow-in
                      c = block-key => flow-key
                      c = flow-key => flow-key
+*/
 
 [137] c-flow-sequence(n,c) ::= "[" s-separate(n,c)?
                                ns-s-flow-seq-entries(n,in-flow(c))? "]"
@@ -460,7 +460,7 @@ b-comment
 
 [168] l-keep-empty(n) ::= l-empty(n,block-in)* l-trail-comments(n)?
 
-[169] l-trail-comments(n) ::= s-indent-Lt(n) c-nb-comment-text b-comment 
+[169] l-trail-comments(n) ::= s-indent-lt(n) c-nb-comment-text b-comment 
                               l-comment*
 
 [170] c-l+literal(n) ::= "|" c-b-block-header(m,t) l-literal-content(n+m,t)
@@ -562,8 +562,10 @@ b-comment
                                     ( l+block-sequence(seq-spaces(n,c))
                                     | l+block-mapping(n) )
 
+/*
 [201] seq-spaces(n,c) ::= c = block-out => n-1
                            c = block-in => n
+*/
 
 [202] l-document-prefix ::= c-byte-order-mark? l-comment*
 

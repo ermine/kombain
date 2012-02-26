@@ -1,18 +1,20 @@
 %{
-
 open Kmb_input
 open Kmb_grammar
 open Printf
-
 %}
 
 # Hierarchical syntax
 
-grammar		<- spacing declaration? definition+ endOfFile
+grammar		   <- spacing declaration? start_rule? definition+ endOfFile
+
+start_rule   <- "%start " spacing name
 
 declaration  <- '%{' < ( !'%}' .)* > '%}' spacing       { make_declaration }
 
-definition   <- ident l_leftarrow expression { make_definition }
+definition   <- pname l_leftarrow expression
+              / name l_leftarrow expression 
+                { fun (n, e) -> ((n.lexeme, []), e) }
               / < . > { fun {start = (line, col)} ->
                           raise (Error (sprintf 
                             "Invalid rule definition at line %d col %d" 
@@ -40,10 +42,11 @@ suffix		<- primary ( l_question 		    { fun _ r -> Opt r }
                                               | Some f -> f p
                                         }
 
-primary		<- ident !l_leftarrow       { make_name }
-		       / l_open expression l_close
-           / < l_open > { unmatched }
-           / literal 
+primary		<- funct !l_leftarrow         { fun (n, ps) -> Name (n, ps) }
+           / name !l_leftarrow          { make_name }
+		       / l_OPEN expression l_CLOSE
+           / < l_OPEN >                 { unmatched }
+           / literal                    { make_literal }
 		       / l_class 
 		       / l_dot
 		       / l_leftangle expression l_rightangle   { make_tokenizer }
@@ -53,12 +56,13 @@ primary		<- ident !l_leftarrow       { make_name }
 # Lexical syntax
 
 # Copied from OCaml's documentation
-ident       <- < (letter / '_') (letter / [0-9_'])* > spacing
+ident       <- < (letter / '_') (letter / [0-9_'])* >
+name        <- ident !l_OPEN spacing
 letter      <- [A-Za-z]
 
-literal		  <- ['] (!['] char)* ['] spacing  { make_literal }
+literal		  <- ['] (!['] char)* ['] spacing
              / < ['] > { unmatched }
-		         / ["] (!["] char)* ["] spacing  { make_literal }
+		         / ["] (!["] char)* ["] spacing 
              / < ["] > { unmatched }
 l_class	    <- '[' (!']' range)* ']' spacing   { make_class }
              / < '[' > { unmatched }
@@ -81,8 +85,8 @@ l_not	      <- '!' spacing
 l_question	  <- '?' spacing
 l_star		    <- '*' spacing
 l_plus		    <- '+' spacing
-l_open		    <- '(' spacing
-l_close		  <- ')' spacing
+l_OPEN		    <- '(' spacing
+l_CLOSE		  <- ')' spacing
 l_dot		    <- '.' spacing                          { fun () -> Any }
 spacing		  <- (space / comment)*
 comment		  <- '#' (!endOfLine .)* endOfLine
@@ -99,3 +103,21 @@ l_leftangle	  <- '<' spacing
 l_rightangle	<- '>' spacing
 l_at          <- '@' spacing
 l_comma       <- "," spacing
+
+pname         <- ident l_OPEN param (l_COMMA param)* l_CLOSE
+                 { fun (name, (p, ps)) -> (name.lexeme, (p :: ps)) }
+l_COMMA           <- ',' spacing
+param         <- ident { fun i -> i.lexeme }
+
+funct         <- ident l_OPEN fparam (l_COMMA fparam)* l_CLOSE
+                 { fun (n, (p, ps)) -> (n.lexeme, (p::ps)) }
+               / ident l_OPEN l_CLOSE
+                 { fun n -> (n.lexeme, []) }
+fparam        <- funct { fun (n,ps) -> Func (n, ps) }
+               / ident { fun {lexeme} ->
+                           if lexeme = "true" || lexeme = "false" then
+                             Value ("bool", lexeme)
+                           else
+                             Ident lexeme }
+               / < '-'? [0-9]+ > { fun ds -> Value ("int", ds.lexeme) }
+               / literal { fun cs -> Value ("string", string_of_literal cs) }

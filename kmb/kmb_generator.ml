@@ -10,17 +10,36 @@ module Caml =
 
 open Syntax
     
-let rec should_export rules names = function
+let find_rule name (rules:((string*string list)*token) list) =
+  let (_, token) = List.find (fun ((n, _), _) -> n = name) rules in
+    token
+    
+let rec should_export (rules:((string*string list)*token) list) names = function
   | Epsilon -> false
-  | Name name -> (
-    if List.mem name names then
-      false
-    else
-      try should_export rules (name :: names)
-            (List.assoc name rules) with Not_found ->
-              printf "Warning: Not found rule: %s\n" name;
+  | Name (name, params) ->
+    (* if params = [] then *)
+      if List.mem name names then
+        (* recursive definition like A <- A *)
+        false
+      else (
+        try
+          if not (should_export rules (name :: names) (find_rule name rules))
+          then if params = [] then
               false
-  )
+            else
+              false
+          else
+            true
+                (*
+              List.find (function
+                | Ident n ->
+                  try should_export rules (n :: names) (find_
+                *)
+        with Not_found ->
+          printf "Warning: Not found rule: %s\n" name;
+          false
+      )
+      
   | Transform _ -> true
   | Tokenizer _ -> true
   | Pattern (_, expr) -> should_export rules names expr
@@ -36,34 +55,37 @@ let rec should_export rules names = function
   | Sequence (e1, e2) ->
     should_export rules names e1 || should_export rules names e2
 
-let rec make_rule_expr _loc rules names = function
+let rec make_rule_expr _loc rules names params = function
   | Epsilon ->
     <:expr< peg_stub >>
 
-  | Name name ->
-    <:expr< $lid:name$ >>
-
-  | Function (name, params) ->
-    let rec aux_function = function
-      | [] -> <:expr< () >>
-      | ps ->
-        let make_arg = function
-          | Ident id -> <:expr< $lid:id$ >>
-          | Unit -> <:expr< () >>
-          | Func (name, ps) -> <:expr< $lid:name$ $aux_function ps$ >>
-        in
-          List.fold_right (fun arg args -> <:expr< $make_arg arg$ $args$ >>) ps
-            <:expr< >>
+  | Name (name, params) ->
+    let rec aux_function name ps =
+      let make_arg = function
+        | Ident id -> <:expr< $lid:id$ >>
+        | Func (name, ps) -> <:expr< $aux_function name ps$ >>
+        | Value (t, v) ->
+          match t with
+            | "string" -> <:expr< $str:v$ >>
+            | "int" -> <:expr< $int:v$ >>
+            | "bool" -> <:expr< $`bool:bool_of_string v$ >>
+      in
+        List.fold_left (fun args arg -> <:expr< $args$ $make_arg arg$ >>)
+        <:expr< $lid:name$ >> ps
     in
-      <:expr< $lid:name$ $aux_function params$>>
+      if params = [] then
+        <:expr< $lid:name$ >>
+      else
+        <:expr< $aux_function name params$>>
 
   | Sequence (Pattern (name, expr), xs) ->
-    let rules = (name, Epsilon) :: rules in
+    let rules = ((name, []), Epsilon) :: rules in
       <:expr< fun input ->
-        match get_pattern $make_rule_expr _loc rules names expr$ input with
+        match get_pattern $make_rule_expr _loc rules names params expr$
+          input with
           | Parsed (r, input) ->
             let $lid:name$ = match_pattern r in
-              $make_rule_expr _loc rules names xs$ input
+              $make_rule_expr _loc rules names params xs$ input
           | Failed as failed -> failed
             >>
 
@@ -80,15 +102,15 @@ let rec make_rule_expr _loc rules names = function
         | false, false -> "seq_n"
     in
       <:expr< $lid:seq$ 
-        $make_rule_expr _loc rules names x1$
-        $make_rule_expr _loc rules names x2$ >>
+        $make_rule_expr _loc rules names params x1$
+        $make_rule_expr _loc rules names params x2$ >>
 
   | Alternate (x1, x2) ->
-    <:expr< alt $make_rule_expr _loc rules names x1$
-      $make_rule_expr _loc rules names x2$ >>
+    <:expr< alt $make_rule_expr _loc rules names params x1$
+      $make_rule_expr _loc rules names params x2$ >>
 
   | Tokenizer t ->
-    <:expr< get_lexeme $make_rule_expr _loc rules names t$ >>
+    <:expr< get_lexeme $make_rule_expr _loc rules names params t$ >>
  
   | Transform ({Kmb_input.start = (line, col); Kmb_input.lexeme = code}, expr) ->
     let code_expr =
@@ -99,36 +121,36 @@ let rec make_rule_expr _loc rules names = function
         Pervasives.exit 1
     in
       <:expr< transform
-        $make_rule_expr _loc rules names expr$
+        $make_rule_expr _loc rules names params expr$
         $code_expr$
       >>
 
   | Opt t ->
     let export = should_export rules names t in
       if export then
-        <:expr< opt_accu $make_rule_expr _loc rules names t$ >>
+        <:expr< opt_accu $make_rule_expr _loc rules names params t$ >>
       else
-        <:expr< opt $make_rule_expr _loc rules names t$ >>
+        <:expr< opt $make_rule_expr _loc rules names params t$ >>
       
   | Star t ->
     let export = should_export rules names t in
       if export then
-        <:expr< star_accu $make_rule_expr _loc rules names t$ >>
+        <:expr< star_accu $make_rule_expr _loc rules names params t$ >>
       else
-        <:expr< star $make_rule_expr _loc rules names t$ >>
+        <:expr< star $make_rule_expr _loc rules names params t$ >>
 
   | Plus t ->
     let export = should_export rules names t in
       if export then
-        <:expr< plus_accu $make_rule_expr _loc rules names t$ >>
+        <:expr< plus_accu $make_rule_expr _loc rules names params t$ >>
       else
-        <:expr< plus $make_rule_expr _loc rules names t$ >>
+        <:expr< plus $make_rule_expr _loc rules names params t$ >>
       
   | PredicateNOT t ->
-    <:expr< predicate_not $make_rule_expr _loc rules names t$ >>
+    <:expr< predicate_not $make_rule_expr _loc rules names params t$ >>
 
   | PredicateAND t ->
-    <:expr< predicate_and $make_rule_expr _loc rules names t$ >>
+    <:expr< predicate_and $make_rule_expr _loc rules names params t$ >>
       
   | Any ->
     <:expr< test_any >>
@@ -155,51 +177,49 @@ let rec make_rule_expr _loc rules names = function
       <:expr< test_class (fun c -> $exprs$) >>
         
 
-let make_rule_function _loc verbose name expr rules =
-  printf "Generating for rule %s\n" name;
+let make_rule_body _loc verbose name params expr rules =
   if verbose then
-    <:str_item<
-      let $lid:name$ input =
-        Printf.printf "Trying %s %s... " $str:name$
-          $str:String.escaped (string_of_token expr)$;
-        match $make_rule_expr _loc  rules [name] expr$ input with
-          | Failed as result -> Printf.printf "Failed %s\n" $str:name$; result
-          | Parsed _ as result -> Printf.printf "Success %s\n" $str:name$; result
-            >>
-  else
-    <:str_item< let $lid:name$ input =
-                  $make_rule_expr _loc rules [name] expr$ input
-                  >>
+    <:expr<
+      Printf.printf "Trying %s... " $str:name$;
+  match $make_rule_expr _loc  rules [name] params expr$ input with
+    | Failed as result -> Printf.printf "Failed %s\n" $str:name$; result
+    | Parsed _ as result -> Printf.printf "Success %s\n" $str:name$; result
+      >>
+        else 
+  <:expr< $make_rule_expr _loc rules [name] params expr$ input >>
+  
+let make_rule_function _loc verbose (name, params) expr rules =
+  printf "Generating for rule %s\n" name;
+  let e =
+    List.fold_left (fun expr arg -> <:expr< fun $lid:arg$ -> $expr$ >>)
+      (make_rule_body _loc verbose name params expr rules)
+      ("input" :: List.rev params)
+  in
+    <:str_item< let $lid:name$ = $e$ >>
 
-let generate verbose declaration rules output_file =
-  let (start_rule, _) = List.hd rules in
+let generate verbose declaration rules start_rule output_file =
   let sorted = rearrange_grammar rules in
   let _loc = Loc.ghost in
   let bindings =
     List.fold_left (fun acc -> function
       | Simple simples ->
-        List.fold_left (fun acc (name, expr) ->
-          make_rule_function _loc verbose name expr rules :: acc) acc simples
+        List.fold_left (fun acc ((name, params), expr) ->
+          make_rule_function _loc verbose (name, params) expr
+            rules :: acc) acc simples
       | Recursive rs ->
-        let bs = List.map (fun (name, expr) ->
-          printf "Generating for rule %s\n" name;
-          if verbose then
-            <:binding< $lid:name$ input =
-            Printf.printf "Trying %s..." $str:name$;
-            match $make_rule_expr _loc rules [name] expr$ input with
-              | Parsed _ as result ->
-                Printf.printf "Success %s\n" $str:name$; result
-              | Failed as result ->
-                Printf.printf "Failed %s\n" $str:name$; result
-                >>
-          else
-            <:binding< $lid:name$ input =
-            $make_rule_expr _loc rules [name] expr$ input >>
-        ) rs in
+        let bs =
+          List.map (fun ((name, params), expr) ->
+            printf "Generating for rule %s\n" name;
+            let e =
+              List.fold_left (fun expr arg -> <:expr< fun $lid:arg$ -> $expr$ >>)
+                (make_rule_body _loc verbose name params expr rules)                
+                ("input" :: List.rev params)
+            in
+              <:binding< $lid:name$ = $e$ >>
+          ) rs in
           <:str_item< let rec $Ast.biAnd_of_list bs$ >> :: acc
     ) [] sorted
   in
-
     Caml.print_implem ~output_file
     <:str_item<
       open Kmb_lib
