@@ -23,13 +23,9 @@ let () =
           fprintf out "%%}\n\n";
           fprintf out "%%start l_yaml_stream\n";
  
-
-          List.fold_left (fun count (number, rule) ->
+          List.iter (fun (number, rule) ->
             let num = int_of_string number.lexeme in
-              if num <> count + 1 then
-                printf "Previous number: %d, current: %d\n" count num;
               fprintf out "# [%d]\n" num;
-              fprintf out "%s\n\n" (string_of_rule rule);
-              num
-          ) 0 ast;
+              fprintf out "%s\n\n" (string_of_rule (cleanup_rule rule));
+          ) ast;
           close_out out

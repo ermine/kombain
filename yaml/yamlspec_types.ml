@@ -1,7 +1,5 @@
 open Kmb_lib
   
-let na = ref 0 (* shoild fail *)
-
 let rec repeat fail n symbol input =
   if n = 0 then
     Parsed ((), input)
@@ -89,18 +87,88 @@ let seq_spaces n c =
     | "block-in" -> n
       
 
-let auto_detect input = Parsed ((), input)
+let auto_detect input = Parsed (0, input)
   
 
-let m = ref 0
-let t = ref ""
+let na = ref 0 (* shoild fail *)
+
 let minusodin = ref (-1)
   
-let add n m = ref (!n + !m)
+let add n m = n + m
 let succ n = ref (!n + 1)
 let pred n = !n - 1
 
 let sol input =
   let open Kmb_input in
         if input.col = 0 then Parsed ((), input) else Failed
-  
+
+
+open Kmb_grammar
+
+let return m t input = Parsed ((m, t), input)
+
+let rec rewrite_rule = function
+  | Sequence (Name ("c_indentation_indicator", _),
+              Name ("c_chomping_indicator",_)) ->
+    Transform ({Kmb_input.start = (0,0); stop = (0,0);
+                lexeme = "fun (m, t) -> (m, t)"},
+               Sequence (Name ("c_indentation_indicator", []),
+                         Name ("c_chomping_indicator",[])))
+  | Sequence (Name ("c_chomping_indicator",_),
+              Name ("c_indentation_indicator", _)) ->
+    Transform ({Kmb_input.start = (0,0); stop = (0,0);
+                lexeme = "fun (t, m) -> (m, t)"},
+               Sequence (Name ("c_chomping_indicator",[]),
+                         Name ("c_indentation_indicator", [])))
+  | Name (name, ps) as ok ->
+    if name = "c_b_block_header" then
+      Bind ("m", ["t"], Name (name, []))
+    else
+      ok
+  | Sequence (s1, s2) ->
+    Sequence (rewrite_rule s1, rewrite_rule s2)
+  | Alternate (s1, s2) ->
+    Alternate (rewrite_rule s1, rewrite_rule s2)
+  | ok -> ok
+
+
+let try_tokenize ((name, ps), expr) =
+  if String.sub name 0 3 = "ns_" then
+    ((name, ps), expr)
+  else
+    let is_ns = function
+      | Name (name, _) -> String.sub name 0 3 = "ns_"
+      | _ -> false
+    in
+    let rec aux_tokenize = function
+      | Name (name, _) as t ->
+        if String.sub name 0 3 = "ns_" then
+          Tokenizer t
+        else
+          t
+      | Sequence (s1, s2) ->
+        Sequence (aux_tokenize s1, aux_tokenize s2)
+      | Alternate (s1, s2) ->
+        Alternate (aux_tokenize s1, aux_tokenize s2)
+      | Opt t ->
+        if is_ns t then Tokenizer (Opt t)
+        else Opt (aux_tokenize t)
+      | Star t ->
+        if is_ns t then Tokenizer (Star t)
+        else Star (aux_tokenize t)
+      | Plus t ->
+        if is_ns t then Tokenizer (Plus t)
+        else Plus (aux_tokenize t)
+      | t -> t
+    in
+      ((name, ps), aux_tokenize expr)
+
+let cleanup_rule ((name, ps), expr) =
+  if name = "c_indentation_indicator" ||
+    name = "c_chomping_indicator" then
+    try_tokenize ((name, []), expr)
+  else if name = "c_b_block_header" then
+    try_tokenize ((name, []), rewrite_rule expr)
+  else
+    try_tokenize ((name, ps), rewrite_rule expr)
+    

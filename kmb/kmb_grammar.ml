@@ -36,6 +36,7 @@ type token =
   | Sequence of token * token
   | Alternate of token * token
   | Pattern of string * token
+  | Bind of string * string list * token
 
 let string_of_char c =
   if c < 255 then
@@ -60,13 +61,6 @@ let string_of_range c =
   else
     string_of_char c
 
-(*
-let string_of_code arg =
-  let o = new PCaml.printer () in
-    o#expr Format.str_formatter arg;
-    Buffer.contents Format.stdbuf
-*)
-
 let rec string_of_params = function
   | [] -> ""
   | p :: ps ->
@@ -85,7 +79,6 @@ let rec string_of_params = function
       List.fold_left (fun acc p ->
         acc ^ "," ^ string_of_param p
       ) (string_of_param p) ps
-
 
 let string_of_literal cs =
   String.concat "" (List.map string_of_char cs)
@@ -162,7 +155,19 @@ let rec string_of_token = function
   | Transform (fn, t) ->
     sprintf "%s { %s }" (string_of_token t) fn.lexeme
   | Tokenizer t ->
-    sprintf "< %s >" (string_of_token t)      
+    sprintf "< %s >" (string_of_token t)
+  | Bind (var, vars, t) ->
+    let param =
+      if vars = [] then
+        var
+      else
+        let r = List.fold_left (fun str v -> sprintf "%s,%s" str v) var vars in
+        "(" ^ r ^ ")"
+    in
+      if is_simple_token t then
+        sprintf "%s = %s" param (string_of_token t)
+      else
+        sprintf "%s = (%s)" param (string_of_token t)
   
 let string_of_rule ((name, params), expr) =
   if params = [] then
@@ -235,6 +240,11 @@ let make_sequence (items, a) =
 let make_pattern ({lexeme}, expr) =
   Pattern (lexeme, expr)
 
+let make_bind (ps, expr) =
+  match ps with
+    | [] -> assert false
+    | p :: ps -> Bind (p, ps, expr)
+
 let make_predicate_not () v = PredicateNOT v
 let make_predicate_and () v = PredicateAND v
 
@@ -269,7 +279,7 @@ let rec is_productive known = function
     is_productive known t1 && is_productive known t2
   | Alternate (t1, t2) ->
     is_productive known t1 && is_productive known t2
-    
+  | Bind (_, _, t) -> is_productive known t
 
 let simple_productive known rules =
   let rec aux_rearrange result known rest =

@@ -27,13 +27,13 @@ case_match      <- name l_EQ name
                  / l_literal
 
 case_bind       <- name l_EQ element 
-                   { fun (v, e) -> 
+                   { fun (_, e) -> 
                        match e with
                          | Name (n, []) ->
                            if is_context n then
                              Transform ({start = (0,0); stop=(0,0);
                                      lexeme=Printf.sprintf 
-                                        "fun () -> %s := %S" v n}, 
+                                        "fun () -> %S" n}, 
                                      Epsilon)
                            else Name (n, []) 
                          | e -> e }

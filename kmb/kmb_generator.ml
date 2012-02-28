@@ -33,13 +33,13 @@ let rec should_export (rules:((string*string list)*token) list) names = function
                 (*
               List.find (function
                 | Ident n ->
-                  try should_export rules (n :: names) (find_
+                  try should_export rules (n :: names) (find_rule n)
+                  )
                 *)
         with Not_found ->
           printf "Warning: Not found rule: %s\n" name;
           false
       )
-      
   | Transform _ -> true
   | Tokenizer _ -> true
   | Pattern (_, expr) -> should_export rules names expr
@@ -54,6 +54,8 @@ let rec should_export (rules:((string*string list)*token) list) names = function
   | Alternate (e1, e2) -> should_export rules names e1
   | Sequence (e1, e2) ->
     should_export rules names e1 || should_export rules names e2
+  | Bind (var, vars, t) -> false
+
 
 let rec make_rule_expr _loc rules names params = function
   | Epsilon ->
@@ -90,6 +92,19 @@ let rec make_rule_expr _loc rules names params = function
             >>
 
   | Pattern _ -> assert false
+
+  | Sequence (Bind (var, vars, t), xs) ->
+    let ps =
+      Ast.paCom_of_list (List.map (fun i -> <:patt< $lid:i$ >>) (var::vars)) in
+      
+      <:expr< fun input ->
+        match $make_rule_expr _loc rules names params t$ input with
+          | Parsed (( $tup:ps$ ), input) ->
+            $make_rule_expr _loc rules names params xs$ input
+          | Failed as failed -> failed
+            >>
+                     
+  | Bind _ -> assert false
 
   | Sequence (x1, x2) ->
     let export_left = should_export rules names x1

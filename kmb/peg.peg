@@ -25,7 +25,9 @@ expression	<- sequence (l_slash sequence)*       { make_alternates }
 
 sequence	<- item* l_transform?                   { make_sequence }
 
-item      <- ident l_at suffix               { make_pattern }
+item      <- ident l_AT suffix               { make_pattern }
+           / param spacing l_EQ suffix       { fun (p, e) -> make_bind ([p],e) }
+           / params l_EQ suffix              { make_bind }
            / prefix
 
 prefix		<- (l_and                             { make_predicate_and }
@@ -101,11 +103,15 @@ l_transform'    <- '{' (l_transform' / !'}' .)* '}'
 
 l_leftangle	  <- '<' spacing
 l_rightangle	<- '>' spacing
-l_at          <- '@' spacing
+l_AT          <- '@' spacing
+l_EQ          <- '=' spacing
 l_comma       <- "," spacing
 
-pname         <- ident l_OPEN param (l_COMMA param)* l_CLOSE
-                 { fun (name, (p, ps)) -> (name.lexeme, (p :: ps)) }
+pname         <- ident params
+                 { fun (name, ps) -> (name.lexeme, (ps)) }
+params        <- l_OPEN param (l_COMMA param)* l_CLOSE
+                 { fun (p, ps) -> p :: ps }
+
 l_COMMA           <- ',' spacing
 param         <- ident { fun i -> i.lexeme }
 
