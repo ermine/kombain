@@ -1,0 +1,798 @@
+# This PEG file was generated from yaml.bnf
+%{
+open Yamlspec_types
+%}
+
+%start l_yaml_stream
+
+# helpers
+detect_collection_indentation(n) <-
+    &(l_comment*) count_spaces(pred(n))
+
+count_spaces(n) <- s_space (count_spaces(succ(n)) { fun i -> i }) / pmax(1,n)
+
+detect_inline_indentation <- count_spaces(0)
+
+detect_scalar_indentation(n) <- &(nb_char*)
+                                   (b_non_content (l_empty(n,"block-in")*)?)
+                                   count_spaces(pred(n))
+
+
+# [1]
+c_printable <- "\t" / "\n" / "\r" / [ -~] / "…" / [ -\xD7FF] / [\xE000-\xFFFD] / [\x10000-\x10FFFF]
+
+# [2]
+nb_json <- "\t" / [ -\x10FFFF]
+
+# [3]
+c_byte_order_mark <- "\xFEFF"
+
+# [4]
+c_sequence_entry <- "-"
+
+# [5]
+c_mapping_key <- "?"
+
+# [6]
+c_mapping_value <- ":"
+
+# [7]
+c_collect_entry <- ","
+
+# [8]
+c_sequence_start <- "["
+
+# [9]
+c_sequence_end <- "]"
+
+# [10]
+c_mapping_start <- "{"
+
+# [11]
+c_mapping_end <- "}"
+
+# [12]
+c_comment <- "#"
+
+# [13]
+c_anchor <- "&"
+
+# [14]
+c_alias <- "*"
+
+# [15]
+c_tag <- "!"
+
+# [16]
+c_literal <- "|"
+
+# [17]
+c_folded <- ">"
+
+# [18]
+c_single_quote <- "'"
+
+# [19]
+c_double_quote <- "\""
+
+# [20]
+c_directive <- "%"
+
+# [21]
+c_reserved <- "@" / "`"
+
+# [22]
+c_indicator <- "-" / "?" / ":" / "," / "[" / "]" / "{" / "}" / "#" / "&" / "*" / "!" / "|" / ">" / "'" / "\"" / "%" / "@" / "`"
+
+# [23]
+c_flow_indicator <- "," / "[" / "]" / "{" / "}"
+
+# [24]
+b_line_feed <- "\n"
+
+# [25]
+b_carriage_return <- "\r"
+
+# [26]
+b_char <- b_line_feed / b_carriage_return
+
+# [27]
+nb_char <- !b_char !c_byte_order_mark c_printable
+
+# [28]
+b_break <- b_carriage_return b_line_feed / b_carriage_return / b_line_feed
+
+# [29]
+b_as_line_feed <- b_break
+
+# [30]
+b_non_content <- b_break
+
+# [31]
+s_space <- " "
+
+# [32]
+s_tab <- "\t"
+
+# [33]
+s_white <- s_space / s_tab
+
+# [34]
+ns_char <- !s_white nb_char
+
+# [35]
+ns_dec_digit <- [0-9]
+
+# [36]
+ns_hex_digit <- ns_dec_digit / [A-F] / [a-f]
+
+# [37]
+ns_ascii_letter <- [A-Z] / [a-z]
+
+# [38]
+ns_word_char <- ns_dec_digit / ns_ascii_letter / "-"
+
+# [39]
+ns_uri_char <- "%" ns_hex_digit ns_hex_digit / ns_word_char / "#" / ";" / "/" / "?" / ":" / "@" / "&" / "=" / "+" / "$" / "," / "_" / "." / "!" / "~" / "*" / "'" / "(" / ")" / "[" / "]"
+
+# [40]
+ns_tag_char <- !"!" !c_flow_indicator ns_uri_char
+
+# [41]
+c_escape <- "\\"
+
+# [42]
+ns_esc_null <- "0"
+
+# [43]
+ns_esc_bell <- "a"
+
+# [44]
+ns_esc_backspace <- "b"
+
+# [45]
+ns_esc_horizontal_tab <- "t" / "\t"
+
+# [46]
+ns_esc_line_feed <- "n"
+
+# [47]
+ns_esc_vertical_tab <- "v"
+
+# [48]
+ns_esc_form_feed <- "f"
+
+# [49]
+ns_esc_carriage_return <- "r"
+
+# [50]
+ns_esc_escape <- "e"
+
+# [51]
+ns_esc_space <- " "
+
+# [52]
+ns_esc_double_quote <- "\""
+
+# [53]
+ns_esc_slash <- "/"
+
+# [54]
+ns_esc_backslash <- "\\"
+
+# [55]
+ns_esc_next_line <- "N"
+
+# [56]
+ns_esc_non_breaking_space <- "_"
+
+# [57]
+ns_esc_line_separator <- "L"
+
+# [58]
+ns_esc_paragraph_separator <- "P"
+
+# [59]
+ns_esc_8_bit <- "x" repeat(true,2,ns_hex_digit)
+
+# [60]
+ns_esc_16_bit <- "u" repeat(true,4,ns_hex_digit)
+
+# [61]
+ns_esc_32_bit <- "U" repeat(true,8,ns_hex_digit)
+
+# [62]
+c_ns_esc_char <- "\\" (ns_esc_null / ns_esc_bell / ns_esc_backspace / ns_esc_horizontal_tab / ns_esc_line_feed / ns_esc_vertical_tab / ns_esc_form_feed / ns_esc_carriage_return / ns_esc_escape / ns_esc_space / ns_esc_double_quote / ns_esc_slash / ns_esc_backslash / ns_esc_next_line / ns_esc_non_breaking_space / ns_esc_line_separator / ns_esc_paragraph_separator / ns_esc_8_bit / ns_esc_16_bit / ns_esc_32_bit)
+
+# [63]
+s_indent(n) <- repeat(true,n,s_space)
+
+# [64]
+s_indent_lt(n) <- repeat(false,pred(n),s_space)
+
+# [65]
+s_indent_le(n) <- repeat(false,n,s_space)
+
+# [66]
+s_separate_in_line <- s_white+ / sol
+
+# [67]
+s_line_prefix(n,c) <- simple_cmp(c,"block-out") s_block_line_prefix(n) / simple_cmp(c,"block-in") s_block_line_prefix(n) / simple_cmp(c,"flow-out") s_flow_line_prefix(n) / simple_cmp(c,"flow-in") s_flow_line_prefix(n)
+
+# [68]
+s_block_line_prefix(n) <- s_indent(n)
+
+# [69]
+s_flow_line_prefix(n) <- s_indent(n) s_separate_in_line?
+
+# [70]
+l_empty(n,c) <- (s_line_prefix(n,c) / s_indent_lt(n)) b_as_line_feed
+
+# [71]
+b_l_trimmed(n,c) <- b_non_content l_empty(n,c)+
+
+# [72]
+b_as_space <- b_break
+
+# [73]
+b_l_folded(n,c) <- b_l_trimmed(n,c) / b_as_space
+
+# [74]
+s_flow_folded(n) <- s_separate_in_line? b_l_folded(n,"flow-in") s_flow_line_prefix(n)
+
+# [75]
+c_nb_comment_text <- "#" nb_char*
+
+# [76]
+b_comment <- b_non_content / !.
+
+# [77]
+s_b_comment <- (s_separate_in_line c_nb_comment_text?)? b_comment
+
+# [78]
+l_comment <- s_separate_in_line c_nb_comment_text? b_comment
+
+# [79]
+s_l_comments <- (s_b_comment / sol) l_comment*
+
+# [80]
+s_separate(n,c) <- simple_cmp(c,"block-out") s_separate_lines(n) / simple_cmp(c,"block-in") s_separate_lines(n) / simple_cmp(c,"flow-out") s_separate_lines(n) / simple_cmp(c,"flow-in") s_separate_lines(n) / simple_cmp(c,"block-key") s_separate_in_line / simple_cmp(c,"flow-key") s_separate_in_line
+
+# [81]
+s_separate_lines(n) <- s_l_comments s_flow_line_prefix(n) / s_separate_in_line
+
+# [82]
+l_directive <- "%" (ns_yaml_directive / ns_tag_directive / ns_reserved_directive) s_l_comments
+
+# [83]
+ns_reserved_directive <- ns_directive_name (s_separate_in_line ns_directive_parameter)* { fun (name, ps) -> ReservedDirective (name, ps) }
+
+# [84]
+ns_directive_name <- < ns_char+ > { fun s -> s.Kmb_input.lexeme }
+
+# [85]
+ns_directive_parameter <- < ns_char+ > { fun s -> s.Kmb_input.lexeme }
+
+# [86]
+ns_yaml_directive <- "Y" "A" "M" "L" s_separate_in_line ns_yaml_version
+
+# [87]
+ns_yaml_version <- < ns_dec_digit+ "." ns_dec_digit+ > { fun s -> YAMLVersion s.Kmb_input.lexeme }
+
+# [88]
+ns_tag_directive <- "T" "A" "G" s_separate_in_line c_tag_handle s_separate_in_line ns_tag_prefix { fun (h,p) -> TagDirective (h, p) }
+
+# [89]
+c_tag_handle <- c_named_tag_handle / c_secondary_tag_handle / c_primary_tag_handle
+
+# [90]
+c_primary_tag_handle <- "!" { fun () -> PrimaryTagHandle }
+
+# [91]
+c_secondary_tag_handle <- "!" "!" { fun () -> SecondaryTagHandle }
+
+# [92]
+c_named_tag_handle <- "!" < ns_word_char+ > "!" { fun s -> NamedTagHandle s.Kmb_input.lexeme }
+
+# [93]
+ns_tag_prefix <- c_ns_local_tag_prefix / ns_global_tag_prefix
+
+# [94]
+c_ns_local_tag_prefix <- "!" < ns_uri_char* > { fun s -> LocalTagPrefix s.Kmb_input.lexeme }
+
+# [95]
+ns_global_tag_prefix <- < ns_tag_char ns_uri_char* > { fun s -> GlobalTagPrefix s.Kmb_input.lexeme }
+
+# [96]
+c_ns_properties(n,c) <- 
+c_ns_tag_property (s_separate(n,c) c_ns_anchor_property)? 
+{ fun (p,a) -> TagProperty (p,a) } 
+/ c_ns_anchor_property (s_separate(n,c) c_ns_tag_property)? 
+{ fun (a,p) -> AnchorProperty (a,p) }
+
+# [97]
+c_ns_tag_property <- c_verbatim_tag / c_ns_shorthand_tag / c_non_specific_tag
+
+# [98]
+c_verbatim_tag <- "!" "<" < ns_uri_char+ > ">" { fun s -> VerbatimTag s.Kmb_input.lexeme }
+
+# [99]
+c_ns_shorthand_tag <- c_tag_handle < ns_tag_char+ > { fun (handle, s) -> ShorthandTag (handle, s.Kmb_input.lexeme) }
+
+# [100]
+c_non_specific_tag <- "!" { fun () -> NonSpecificTag }
+
+# [101]
+c_ns_anchor_property <- "&" ns_anchor_name
+
+# [102]
+ns_anchor_char <- !c_flow_indicator ns_char
+
+# [103]
+ns_anchor_name <- < ns_anchor_char+ > { fun s -> s.Kmb_input.lexeme }
+
+# [104]
+c_ns_alias_node <- "*" ns_anchor_name { fun s -> Alias s }
+
+# [105]
+e_scalar <- { fun () -> Scalar "" }
+
+# [106]
+e_node <- e_scalar { fun s -> Node (Content s) }
+
+# [107]
+nb_double_char <- c_ns_esc_char / !"\\" !"\"" nb_json
+
+# [108]
+ns_double_char <- !s_white nb_double_char
+
+# [109]
+c_double_quoted(n,c) <- "\"" < nb_double_text(n,c) > "\""
+{ fun s -> Scalar s.Kmb_input.lexeme }
+
+# [110]
+nb_double_text(n,c) <- simple_cmp(c,"flow-out") nb_double_multi_line(n) / simple_cmp(c,"flow-in") nb_double_multi_line(n) / simple_cmp(c,"block-key") nb_double_one_line / simple_cmp(c,"flow-key") nb_double_one_line
+
+# [111]
+nb_double_one_line <- nb_double_char*
+
+# [112]
+s_double_escaped(n) <- s_white* "\\" b_non_content l_empty(n,"flow-in")* s_flow_line_prefix(n)
+
+# [113]
+s_double_break(n) <- s_double_escaped(n) / s_flow_folded(n)
+
+# [114]
+nb_ns_double_in_line <- (s_white* ns_double_char)*
+
+# [115]
+s_double_next_line(n) <- s_double_break(n) (ns_double_char nb_ns_double_in_line (s_double_next_line(n) / s_white*))?
+
+# [116]
+nb_double_multi_line(n) <- nb_ns_double_in_line (s_double_next_line(n) / s_white*)
+
+# [117]
+c_quoted_quote <- "'" "'"
+
+# [118]
+nb_single_char <- c_quoted_quote / !"'" nb_json
+
+# [119]
+ns_single_char <- !s_white nb_single_char
+
+# [120]
+c_single_quoted(n,c) <- "'" < nb_single_text(n,c) > "'"
+{ fun s -> Scalar s.Kmb_input.lexeme }
+
+# [121]
+nb_single_text(n,c) <- simple_cmp(c,"flow-out") nb_single_multi_line(n) / simple_cmp(c,"flow-in") nb_single_multi_line(n) / simple_cmp(c,"block-key") nb_single_one_line / simple_cmp(c,"flow-key") nb_single_one_line
+
+# [122]
+nb_single_one_line <- nb_single_char*
+
+# [123]
+nb_ns_single_in_line <- (s_white* ns_single_char)*
+
+# [124]
+s_single_next_line(n) <- s_flow_folded(n) (ns_single_char nb_ns_single_in_line (s_single_next_line(n) / s_white*))?
+
+# [125]
+nb_single_multi_line(n) <- nb_ns_single_in_line (s_single_next_line(n) / s_white*)
+
+# [126]
+ns_plain_first(c) <- !c_indicator ns_char / "?" / ":" / "-"
+
+# [127]
+ns_plain_safe(c) <- simple_cmp(c,"flow-out") ns_plain_safe_out / simple_cmp(c,"flow-in") ns_plain_safe_in / simple_cmp(c,"block-key") ns_plain_safe_out / simple_cmp(c,"flow-key") ns_plain_safe_in
+
+# [128]
+ns_plain_safe_out <- ns_char
+
+# [129]
+ns_plain_safe_in <- !c_flow_indicator ns_char
+
+# [130]
+ns_plain_char(c) <- !":" !"#" ns_plain_safe(c) / "#" / ":"
+
+# [131]
+ns_plain(n,c) <- 
+simple_cmp(c,"flow-out") ns_plain_multi_line(n,c) { String.concat " " }
+/ simple_cmp(c,"flow-in") ns_plain_multi_line(n,c) { String.concat " " }
+/ simple_cmp(c,"block-key") ns_plain_one_line(c)  
+/ simple_cmp(c,"flow-key") ns_plain_one_line(c) 
+
+# [132]
+nb_ns_plain_in_line(c) <- (s_white* ns_plain_char(c))*
+
+# [133]
+ns_plain_one_line(c) <- < ns_plain_first(c) nb_ns_plain_in_line(c) > { fun s -> s.Kmb_input.lexeme }
+
+# [134]
+s_ns_plain_next_line(n,c) <- s_flow_folded(n) < ns_plain_char(c) nb_ns_plain_in_line(c) >
+{ fun s -> s.Kmb_input.lexeme }
+
+# [135]
+ns_plain_multi_line(n,c) <- ns_plain_one_line(c) s_ns_plain_next_line(n,c)*
+{ fun (s, ss) -> s :: ss }
+
+
+# [137]
+c_flow_sequence(n,c) <- 
+ "[" s_separate(n,c)? ns_s_flow_seq_entries(n,in_flow(c))? "]"
+{ fun s -> match s with None -> [] | Some s -> s }
+
+# [138]
+ns_s_flow_seq_entries(n,c) <- 
+ns_flow_seq_entry(n,c) s_separate(n,c)? 
+("," s_separate(n,c)? 
+(ns_s_flow_seq_entries(n,c) { fun s -> s })?)?
+{ fun (s,ss) -> match ss with Some (Some ss) -> s :: ss | _ -> [s] }
+
+# [139]
+ns_flow_seq_entry(n,c) <- 
+ns_flow_pair(n,c)
+/ ns_flow_node(n,c)
+
+# [140]
+c_flow_mapping(n,c) <- 
+"{" s_separate(n,c)? ns_s_flow_map_entries(n,in_flow(c))? "}"
+{ fun s -> match s with None -> [] | Some s -> s }
+
+# [141]
+ns_s_flow_map_entries(n,c) <- 
+ns_flow_map_entry(n,c)
+s_separate(n,c)? 
+("," s_separate(n,c)? 
+(ns_s_flow_map_entries(n,c) { fun s -> s })?)?
+{ fun (m, ms) -> match ms with Some (Some ms) -> m::ms | _ -> [m] }
+
+# [142]
+ns_flow_map_entry(n,c) <- 
+"?" s_separate(n,c) ns_flow_map_explicit_entry(n,c)
+/ ns_flow_map_implicit_entry(n,c)
+
+# [143]
+ns_flow_map_explicit_entry(n,c) <- 
+ns_flow_map_implicit_entry(n,c) 
+/ e_node e_node { fun (k,v) -> Pair (k, v) }
+
+# [144]
+ns_flow_map_implicit_entry(n,c) <- 
+ns_flow_map_yaml_key_entry(n,c) 
+/ c_ns_flow_map_empty_key_entry(n,c) 
+/ c_ns_flow_map_json_key_entry(n,c)
+
+# [145]
+ns_flow_map_yaml_key_entry(n,c) <- 
+ns_flow_yaml_node(n,c) 
+(s_separate(n,c)? c_ns_flow_map_separate_value(n,c) 
+/ e_node)
+{ fun (k,v) -> Pair (k,v) }
+
+
+# [146]
+c_ns_flow_map_empty_key_entry(n,c) <- e_node c_ns_flow_map_separate_value(n,c)
+{ fun (k,v) -> Pair (k,v) }
+
+
+# [147]
+c_ns_flow_map_separate_value(n,c) <- 
+":" (s_separate(n,c) ns_flow_node(n,c) 
+    / e_node)
+
+# [148]
+c_ns_flow_map_json_key_entry(n,c) <- 
+c_flow_json_node(n,c) (s_separate(n,c)? c_ns_flow_map_adjacent_value(n,c) 
+/ e_node)
+{ fun (k,v) -> Pair (k, v) }
+
+# [149]
+c_ns_flow_map_adjacent_value(n,c) <- 
+":" (s_separate(n,c)? ns_flow_node(n,c) 
+    / e_node)
+
+# [150]
+ns_flow_pair(n,c) <- 
+"?" s_separate(n,c) ns_flow_map_explicit_entry(n,c)
+/ ns_flow_pair_entry(n,c)
+
+# [151]
+ns_flow_pair_entry(n,c) <- 
+ns_flow_pair_yaml_key_entry(n,c) 
+/ c_ns_flow_map_empty_key_entry(n,c) 
+/ c_ns_flow_pair_json_key_entry(n,c)
+
+# [152]
+ns_flow_pair_yaml_key_entry(n,c) <- 
+ns_s_implicit_yaml_key("flow-key") c_ns_flow_map_separate_value(n,c)
+{ fun (k,v) -> Pair (k,v) }
+
+# [153]
+c_ns_flow_pair_json_key_entry(n,c) <- 
+c_s_implicit_json_key("flow-key") c_ns_flow_map_adjacent_value(n,c)
+{ fun (k,v) -> Pair (k,v) }
+
+# [154]
+ns_s_implicit_yaml_key(c) <- ns_flow_yaml_node(na,c) s_separate_in_line?
+
+# [155]
+c_s_implicit_json_key(c) <- c_flow_json_node(na,c) s_separate_in_line?
+
+# [156]
+ns_flow_yaml_content(n,c) <- ns_plain(n,c)
+{ fun s -> Scalar s }
+
+# [157]
+c_flow_json_content(n,c) <-
+c_flow_sequence(n,c)  { fun s -> Seq s }
+/ c_flow_mapping(n,c) { fun s -> Seq s }
+/ c_single_quoted(n,c) 
+/ c_double_quoted(n,c)
+
+# [158]
+ns_flow_content(n,c) <- 
+ns_flow_yaml_content(n,c) 
+/ c_flow_json_content(n,c)
+
+# [159]
+ns_flow_yaml_node(n,c) <- (
+c_ns_alias_node 
+/ ns_flow_yaml_content(n,c) { fun s -> Content s }
+/ c_ns_properties(n,c) (s_separate(n,c) ns_flow_yaml_content(n,c) 
+                       / e_scalar)
+  { fun (p,n) -> Properties (p,n) })
+{ fun s -> Node s }
+
+# [160]
+c_flow_json_node(n,c) <- (
+(c_ns_properties(n,c) s_separate(n,c))? c_flow_json_content(n,c)
+{ fun (p, s) -> match p with | None -> Content s
+| Some p -> Properties (p, s) })
+{ fun s -> Node s }
+
+# [161]
+ns_flow_node(n,c) <- (
+c_ns_alias_node 
+/ ns_flow_content(n,c) { fun s -> Content s }
+/ c_ns_properties(n,c) (s_separate(n,c) ns_flow_content(n,c) 
+                       / e_scalar)
+  { fun (p,n) -> Properties (p,n) }
+) { fun s -> Node s }
+
+# [162]
+c_b_block_header(n) <- (c_indentation_indicator(n) c_chomping_indicator { fun (m, t) -> (m, t) } / c_chomping_indicator c_indentation_indicator(n) { fun (t, m) -> (m, t) }) s_b_comment
+
+# [163]
+c_indentation_indicator(n) <- &ns_dec_digit !"0" < ns_dec_digit >
+{fun s -> int_of_string s.Kmb_input.lexeme }
+/ detect_scalar_indentation(n)
+
+# [164]
+c_chomping_indicator <- 
+"-"  { fun () -> "strip" } 
+/ "+"  { fun () -> "keep" } 
+/  { fun () -> "clip" }
+
+# [165]
+b_chomped_last(t) <- 
+simple_cmp(t,"strip") (b_non_content 
+/ !.) / simple_cmp(t,"clip") (b_as_line_feed 
+/ !.) / simple_cmp(t,"keep") (b_as_line_feed / !.)
+
+# [166]
+l_chomped_empty(n,t) <- 
+simple_cmp(t,"strip") l_strip_empty(n) 
+/ simple_cmp(t,"clip") l_strip_empty(n) 
+/ simple_cmp(t,"keep") l_keep_empty(n)
+
+# [167]
+l_strip_empty(n) <- (s_indent_le(n) b_non_content)* l_trail_comments(n)?
+
+# [168]
+l_keep_empty(n) <- l_empty(n,"block-in")* l_trail_comments(n)?
+
+# [169]
+l_trail_comments(n) <- s_indent_lt(n) c_nb_comment_text b_comment l_comment*
+
+# [170]
+c_l_literal(n) <- "|" (m,t) = c_b_block_header(n) l_literal_content(add(n,m),t)
+
+# [171]
+l_nb_literal_text(n) <- l_empty(n,"block-in")* s_indent(n) < nb_char+ > 
+{ fun s -> s.Kmb_input.lexeme }
+
+# [172]
+b_nb_literal_next(n) <- b_as_line_feed l_nb_literal_text(n)
+
+# [173]
+l_literal_content(n,t) <- 
+(l_nb_literal_text(n) b_nb_literal_next(n)* b_chomped_last(t))? 
+l_chomped_empty(n,t)
+{ function None -> "" | Some (x,xs) -> String.concat " " (x::xs) }
+
+# [174]
+c_l_folded(n) <- ">" (m,t) = c_b_block_header(n) l_folded_content(add(n,m),t)
+
+# [175]
+s_nb_folded_text(n) <- 
+s_indent(n) < ns_char nb_char* >
+
+# [176]
+l_nb_folded_lines(n) <- 
+s_nb_folded_text(n) (b_l_folded(n,"block-in") s_nb_folded_text(n))*
+{ fun (l,ls) -> l :: ls }
+
+# [177]
+s_nb_spaced_text(n) <- s_indent(n) s_white < nb_char* >
+
+# [178]
+b_l_spaced(n) <- b_as_line_feed l_empty(n,"block-in")*
+
+# [179]
+l_nb_spaced_lines(n) <- 
+s_nb_spaced_text(n) (b_l_spaced(n) s_nb_spaced_text(n))*
+{ fun (l, ls) -> l::ls }
+
+# [180]
+l_nb_same_lines(n) <- 
+l_empty(n,"block-in")* (l_nb_folded_lines(n) / l_nb_spaced_lines(n))
+{ fun ss -> String.concat " " (List.map (fun s -> s.Kmb_input.lexeme) ss) }
+
+# [181]
+l_nb_diff_lines(n) <- l_nb_same_lines(n) (b_as_line_feed l_nb_same_lines(n))*
+{ fun (x,xs) -> String.concat " " (x::xs) }
+
+# [182]
+l_folded_content(n,t) <- 
+(l_nb_diff_lines(n) b_chomped_last(t))? l_chomped_empty(n,t)
+{ function None -> "" | Some s -> s }
+
+# [183]
+l_block_sequence(n) <- 
+m = detect_collection_indentation(n)
+(s_indent(add(n,m)) c_l_block_seq_entry(add(n,m)))+
+
+# [184]
+c_l_block_seq_entry(n) <- "-" s_l_block_indented(n,"block-in")
+
+# [185]
+s_l_block_indented(n,c) <- 
+m = detect_inline_indentation
+s_indent(m) (ns_l_compact_sequence(add(succ(n),m)) { fun s -> Block s }
+            / ns_l_compact_mapping(add(succ(n),m)) { fun s -> Block s }
+            ) 
+/ s_l_block_node(n,c)
+/ e_node s_l_comments
+
+# [186]
+ns_l_compact_sequence(n) <- 
+c_l_block_seq_entry(n) (s_indent(n) c_l_block_seq_entry(n))*
+{ fun (s1, s2) -> (s1 :: s2) }
+
+# [187]
+l_block_mapping(n) <- 
+m = detect_collection_indentation(n)
+(s_indent(add(n,m)) ns_l_block_map_entry(add(n,m)))+
+
+# [188]
+ns_l_block_map_entry(n) <- (
+c_l_block_map_explicit_entry(n) 
+/ ns_l_block_map_implicit_entry(n))
+{ fun (k,v) -> Pair (k,v) }
+
+# [189]
+c_l_block_map_explicit_entry(n) <- 
+c_l_block_map_explicit_key(n) (l_block_map_explicit_value(n) 
+/ e_node)
+
+# [190]
+c_l_block_map_explicit_key(n) <- "?" s_l_block_indented(n,"block-out")
+
+# [191]
+l_block_map_explicit_value(n) <- 
+s_indent(n) ":" s_l_block_indented(n,"block-out")
+
+# [192]
+ns_l_block_map_implicit_entry(n) <- 
+(ns_s_block_map_implicit_key / e_node) c_l_block_map_implicit_value(n)
+
+# [193]
+ns_s_block_map_implicit_key <- 
+c_s_implicit_json_key("block-key") 
+/ ns_s_implicit_yaml_key("block-key")
+
+# [194]
+c_l_block_map_implicit_value(n) <- 
+":" (s_l_block_node(n,"block-out") / e_node s_l_comments)
+
+# [195]
+ns_l_compact_mapping(n) <- 
+ns_l_block_map_entry(n) (s_indent(n) ns_l_block_map_entry(n))*
+{ fun (m1, m2) -> m1 :: m2 }
+
+# [196]
+s_l_block_node(n,c) <- 
+  s_l_block_in_block(n,c) 
+/ s_l_flow_in_block(n)
+
+# [197]
+s_l_flow_in_block(n) <- 
+s_separate(succ(n),"flow-out") ns_flow_node(succ(n),"flow-out") s_l_comments
+
+# [198]
+s_l_block_in_block(n,c) <- s_l_block_scalar(n,c) / s_l_block_collection(n,c)
+
+# [199]
+s_l_block_scalar(n,c) <- 
+s_separate(succ(n),c) (c_ns_properties(succ(n),c) s_separate(succ(n),c))? 
+(c_l_literal(n) / c_l_folded(n))
+{ fun (p,v) -> match p with None -> Node (Content (Scalar v))
+  | Some p -> Node (Properties (p,Scalar v)) }
+
+# [200]
+s_l_block_collection(n,c) <- 
+(s_separate(succ(n),c) c_ns_properties(succ(n),c))? 
+s_l_comments (l_block_sequence(seq_spaces(n,c)) / l_block_mapping(n))
+{ fun (p,v) -> match p with None -> Block v
+| Some p -> Node (Properties (p, Seq v)) }
+
+# [202]
+l_document_prefix <- c_byte_order_mark? l_comment*
+
+# [203]
+c_directives_end <- "-" "-" "-"
+
+# [204]
+c_document_end <- "." "." "."
+
+# [205]
+l_document_suffix <- c_document_end s_l_comments
+
+# [206]
+c_forbidden <- sol (c_directives_end / c_document_end) (b_char / s_white / !.)
+
+# [207]
+l_bare_document <- s_l_block_node(minusodin,"block-in")
+
+# [208]
+l_explicit_document <- 
+c_directives_end (l_bare_document 
+                 / e_node s_l_comments)
+
+# [209]
+l_directive_document <- l_directive+ l_explicit_document
+
+# [210]
+l_any_document <- 
+l_directive_document 
+/ l_explicit_document  { fun d -> [], d }
+/ l_bare_document { fun d -> [], d }
+
+# [211]
+l_yaml_stream <- 
+l_document_prefix* l_any_document? 
+(l_document_suffix+ l_document_prefix* l_any_document? 
+/ l_document_prefix* l_explicit_document? { function Some d -> Some ([], d) 
+| _ -> None }
+)*
+

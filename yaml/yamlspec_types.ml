@@ -8,9 +8,6 @@ let rec repeat fail n symbol input =
       | Parsed (_, input) -> repeat fail (pred n) symbol input
       | Failed -> if fail then Failed else Parsed ((), input)
 
-let repeat_ref flag n symbol input =
-  repeat flag !n symbol input
-
 let make_reject (t, ts) =
   List.fold_right (fun t acc ->
     Kmb_grammar.Sequence (Kmb_grammar.PredicateNOT t, acc)) ts t
@@ -20,13 +17,6 @@ let simple_cmp s1 s2 input =
     Parsed ((), input)
   else
     Failed
-
-let simple_cmp_ref s1 s2 input =
-  if !s1 = s2 then
-    Parsed ((), input)
-  else
-    Failed
-      
 
 let is_production name =
   if String.length name > 2 && name.[1] = '-' then
@@ -83,20 +73,18 @@ let in_flow c =
 (* 201 *)
 let seq_spaces n c =
   match c with
-    | "block-out" -> ref (!n - 1)
+    | "block-out" -> n - 1
     | "block-in" -> n
       
 
 let auto_detect input = Parsed (0, input)
   
 
-let na = ref 0 (* shoild fail *)
+let na = 0 (* shoild fail *)
 
-let minusodin = ref (-1)
+let minusodin = (-1)
   
 let add n m = n + m
-let succ n = ref (!n + 1)
-let pred n = !n - 1
 
 let sol input =
   let open Kmb_input in
@@ -131,18 +119,22 @@ let rec rewrite_rule = function
     Alternate (rewrite_rule s1, rewrite_rule s2)
   | ok -> ok
 
+let tokens = ["ns_uri_char";
+              "ns_word_char";
+              "ns_tag_char";
+             ]
 
 let try_tokenize ((name, ps), expr) =
   if String.sub name 0 3 = "ns_" then
     ((name, ps), expr)
   else
-    let is_ns = function
-      | Name (name, _) -> String.sub name 0 3 = "ns_"
+    let is_token = function
+      | Name (name, _) -> List.mem name tokens
       | _ -> false
     in
     let rec aux_tokenize = function
       | Name (name, _) as t ->
-        if String.sub name 0 3 = "ns_" then
+        if List.mem name tokens then
           Tokenizer t
         else
           t
@@ -151,17 +143,116 @@ let try_tokenize ((name, ps), expr) =
       | Alternate (s1, s2) ->
         Alternate (aux_tokenize s1, aux_tokenize s2)
       | Opt t ->
-        if is_ns t then Tokenizer (Opt t)
+        if is_token t then Tokenizer (Opt t)
         else Opt (aux_tokenize t)
       | Star t ->
-        if is_ns t then Tokenizer (Star t)
+        if is_token t then Tokenizer (Star t)
         else Star (aux_tokenize t)
       | Plus t ->
-        if is_ns t then Tokenizer (Plus t)
+        if is_token t then Tokenizer (Plus t)
         else Plus (aux_tokenize t)
+      | Transform (c, t) ->
+        Transform (c, aux_tokenize t)
+      | Bind (a, b, t) ->
+        Bind (a, b, aux_tokenize t)
       | t -> t
     in
       ((name, ps), aux_tokenize expr)
+
+
+let tr body expr =
+  Transform (
+    { Kmb_input.start = (0,0); stop = (0,0); lexeme = body},
+    expr)
+
+type tag_handle =
+  | PrimaryTagHandle
+  | SecondaryTagHandle
+  | NamedTagHandle of string
+
+type tag_property =
+  | VerbatimTag of string
+  | ShorthandTag of tag_handle * string
+  | NonSpecificTag
+
+type tag_prefix =
+  | LocalTagPrefix of string
+  | GlobalTagPrefix of string
+      
+type directive =
+  | YAMLVersion of string
+  | TagDirective of tag_handle * tag_prefix
+  | ReservedDirective of string * string list
+
+type properties =
+  | TagProperty of tag_property * string option
+  | AnchorProperty of string * tag_property option
+
+and content =
+  | Scalar of string
+  | Seq of seq_entry list
+
+and flow_node =
+  | Alias of string
+  | Content of content
+  | Properties of properties * content
+
+and seq_entry =
+  | Pair of seq_entry * seq_entry
+  | Node of flow_node
+  | Block of seq_entry list
+
+let make_transform ((name, ps), expr) =
+  let newexpr =
+    match name with
+      | "ns_global_tag_prefix" ->
+        tr "fun s -> GlobalTagPrefix s.Kmb_input.lexeme" (Tokenizer expr)
+      | "c_ns_local_tag_prefix" ->
+        tr "fun s -> LocalTagPrefix s.Kmb_input.lexeme" expr
+      | "c_primary_tag_handle" ->
+        tr "fun () -> PrimaryTagHandle" expr
+      | "c_secondary_tag_handle" ->
+        tr "fun () -> SecondaryTagHandle" expr
+      | "c_named_tag_handle" ->
+        tr "fun s -> NamedTagHandle s.Kmb_input.lexeme" expr
+      | "c_verbatim_tag" ->
+        tr "fun s -> VerbatimTag s.Kmb_input.lexeme" expr
+      | "c_ns_shorthand_tag" ->
+        tr "fun (handle, s) -> ShorthandTag (handle, s.Kmb_input.lexeme)" expr
+      | "c_non_specific_tag" ->
+        tr "fun () -> NonSpecificTag" expr
+      | "ns_reserved_directive" ->
+        tr "fun (name, ps) -> ReservedDirective (name, ps)"
+        expr
+      | "ns_directive_parameter" ->
+        tr "fun s -> s.Kmb_input.lexeme" (Tokenizer expr)
+      | "ns_directive_name" ->
+        tr "fun s -> s.Kmb_input.lexeme" (Tokenizer expr)
+      | "ns_yaml_version" ->
+        tr "fun s -> YAMLVersion s.Kmb_input.lexeme" (Tokenizer expr)
+      | "ns_tag_directive" ->
+        tr "fun (h,p) -> TagDirective (h, p)" expr
+      | "c_ns_properties" -> (
+        match expr with
+          | Alternate (a1, a2) ->
+            Alternate (tr "fun (p,a) -> TagProperty (p,a)" a1,
+                       tr "fun (a,p) -> AnchorProperty (a,p)" a2)
+          | _ -> assert false
+      )
+      | "ns_anchor_name" ->
+        tr "fun s -> s.Kmb_input.lexeme" (Tokenizer expr)
+      | "c_ns_alias_node" ->
+        tr "fun s -> Alias s" expr
+      | "e_node" ->
+        tr "fun () -> Empty" expr
+      | "ns_plain_one_line" ->
+        tr "fun s -> s.Kmb_input.lexeme" (Tokenizer expr)
+      | "ns_flow_pair" ->
+        tr "fun (n1, n2) -> Pair (n1, n2)" expr
+        
+      | _ -> expr
+  in
+    ((name, ps), newexpr)
 
 let cleanup_rule ((name, ps), expr) =
   if name = "c_indentation_indicator" ||
@@ -170,5 +261,8 @@ let cleanup_rule ((name, ps), expr) =
   else if name = "c_b_block_header" then
     try_tokenize ((name, []), rewrite_rule expr)
   else
-    try_tokenize ((name, ps), rewrite_rule expr)
+    make_transform (try_tokenize ((name, ps), expr))
     
+let pmax n m input = Parsed ((max n m), input)
+  
+
