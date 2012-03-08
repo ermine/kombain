@@ -400,7 +400,8 @@ s_single_next_line(n) <- s_flow_folded(n) (ns_single_char nb_ns_single_in_line (
 nb_single_multi_line(n) <- nb_ns_single_in_line (s_single_next_line(n) / s_white*)
 
 # [126]
-ns_plain_first(c) <- !c_indicator ns_char / "?" / ":" / "-"
+ns_plain_first(c) <- !c_indicator ns_char 
+/ ("?" / ":" / "-") &ns_plain_safe(c)
 
 # [127]
 ns_plain_safe(c) <- simple_cmp(c,"flow-out") ns_plain_safe_out / simple_cmp(c,"flow-in") ns_plain_safe_in / simple_cmp(c,"block-key") ns_plain_safe_out / simple_cmp(c,"flow-key") ns_plain_safe_in
@@ -412,7 +413,9 @@ ns_plain_safe_out <- ns_char
 ns_plain_safe_in <- !c_flow_indicator ns_char
 
 # [130]
-ns_plain_char(c) <- !":" !"#" ns_plain_safe(c) / "#" / ":"
+ns_plain_char(c) <- !":" !"#" ns_plain_safe(c) 
+/ ns_char "#" 
+/ ":" &ns_plain_safe(c)
 
 # [131]
 ns_plain(n,c) <- 
@@ -497,7 +500,8 @@ c_ns_flow_map_empty_key_entry(n,c) <- e_node c_ns_flow_map_separate_value(n,c)
 
 # [147]
 c_ns_flow_map_separate_value(n,c) <- 
-":" (s_separate(n,c) ns_flow_node(n,c) 
+":" !ns_plain_safe(c)
+(s_separate(n,c) ns_flow_node(n,c) 
     / e_node)
 
 # [148]
@@ -673,7 +677,7 @@ m = detect_collection_indentation(n)
 (s_indent(add(n,m)) c_l_block_seq_entry(add(n,m)))+
 
 # [184]
-c_l_block_seq_entry(n) <- "-" s_l_block_indented(n,"block-in")
+c_l_block_seq_entry(n) <- "-" !ns_char s_l_block_indented(n,"block-in")
 
 # [185]
 s_l_block_indented(n,c) <- 
@@ -795,4 +799,4 @@ l_document_prefix* l_any_document?
 / l_document_prefix* l_explicit_document? { function Some d -> Some ([], d) 
 | _ -> None }
 )*
-
+{ fun (r1, r2) -> r1 :: r2 }
