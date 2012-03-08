@@ -185,21 +185,28 @@ let rec make_rule_expr _loc rules names params = function
         <:expr< c >= $`int:x1$ && c <= $`int:x2$ >>
       | Char x -> <:expr< c = $`int:x$ >>
     in
-    let exprs =
-      List.fold_left (fun acc s ->
-        <:expr< $make_expr s$ || $acc$ >>
-      ) <:expr< $make_expr (List.hd classes)$ >> (List.tl classes) in
-      <:expr< test_class (fun c -> $exprs$) >>
+      match List.rev classes with
+        | [] -> <:expr< >>
+        | [Char c] -> <:expr< test_char $`int:c$ >>
+        | x :: xs ->
+          let exprs =
+            List.fold_left (fun acc s ->
+              <:expr< $make_expr s$ || $acc$ >>
+            ) <:expr< $make_expr x$ >> xs in
+            <:expr< test_class (fun c -> $exprs$) >>
         
 
 let make_rule_body _loc verbose name params expr rules =
   if verbose then
     <:expr<
       Printf.printf "Trying %s... " $str:name$;
-  match $make_rule_expr _loc  rules [name] params expr$ input with
-    | Failed as result -> Printf.printf "Failed %s\n" $str:name$; result
-    | Parsed _ as result -> Printf.printf "Success %s\n" $str:name$; result
-      >>
+  let result = $make_rule_expr _loc  rules [name] params expr$ input in
+    (match result with
+      | Failed -> Printf.printf "Failed %s\n" $str:name$
+      | Parsed _ -> Printf.printf "Success %s\n" $str:name$
+    );
+    result
+    >>
         else 
   <:expr< $make_rule_expr _loc rules [name] params expr$ input >>
   
@@ -212,7 +219,41 @@ let make_rule_function _loc verbose (name, params) expr rules =
   in
     <:str_item< let $lid:name$ = $e$ >>
 
+
+let  try_optimize rules =
+  let concat_class = function
+    | Literal [l1], Literal [l2] -> Some (Class [Char l1; Char l2])
+    | Literal [l], Class cs -> Some (Class (Char l :: cs))
+    | Class cs, Literal [l] -> Some (Class (cs @ [Char l]))
+    | Class cs1, Class cs2 -> Some (Class (cs1 @ cs2))
+    | _ -> None
+  in
+  let rec aux_optimize = function
+    | Alternate (a1, Alternate (a2, tail)) -> (
+      match concat_class (a1, a2) with
+        | None ->
+          Alternate (aux_optimize a1, aux_optimize (Alternate (a2, tail)))
+        | Some r ->
+          aux_optimize (Alternate (r, tail))
+    )
+    | Alternate (a1, a2) -> (
+      match concat_class (a1, a2) with
+        | None -> Alternate (aux_optimize a1, aux_optimize a2)
+        | Some r -> r
+    )
+    | Sequence (s1, s2) ->
+      Sequence (aux_optimize s1, aux_optimize s2)
+    | Opt t -> Opt (aux_optimize t)
+    | Plus t -> Plus (aux_optimize t)
+    | Star t -> Star (aux_optimize t)
+    | Tokenizer t -> Tokenizer (aux_optimize t)
+    | Transform (f, t) -> Transform (f, aux_optimize t)
+    | other -> other
+  in
+    List.map (fun (name, expr) -> name, aux_optimize expr) rules
+                      
 let generate verbose declaration rules start_rule output_file =
+  let rules = try_optimize rules in
   let sorted = rearrange_grammar rules in
   let _loc = Loc.ghost in
   let bindings =
