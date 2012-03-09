@@ -5,6 +5,8 @@ type 'a result =
   | Parsed of 'a * input
   | Failed
 
+let offset = ref 0
+
 let return r input = Parsed (r, input)      
 
 let transform r f input =

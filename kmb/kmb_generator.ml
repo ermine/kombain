@@ -14,6 +14,9 @@ let find_rule name (rules:((string*string list)*token) list) =
   let (_, token) = List.find (fun ((n, _), _) -> n = name) rules in
     token
     
+let mem_rule name rules =
+  List.exists (fun ((n, _), _) -> n = name) rules
+  
 let rec should_export (rules:((string*string list)*token) list) names = function
   | Epsilon -> false
   | Name (name, params) ->
@@ -57,7 +60,7 @@ let rec should_export (rules:((string*string list)*token) list) names = function
   | Bind (var, vars, t) -> false
 
 
-let rec make_rule_expr _loc rules names params = function
+let rec make_rule_expr _loc rules names params verbose = function
   | Epsilon ->
     <:expr< peg_stub >>
 
@@ -76,18 +79,44 @@ let rec make_rule_expr _loc rules names params = function
         <:expr< $lid:name$ >> ps
     in
       if params = [] then
-        <:expr< $lid:name$ >>
+        if verbose then
+          <:expr< fun input ->
+            Printf.printf "%sCalling %s... "
+              (String.make !offset ' ') $str:name$;
+            $if mem_rule name rules then
+              <:expr< Printf.printf "\\n"; $lid:name$ input >>
+            else
+              <:expr< match $lid:name$ input with
+                | Parsed _ as ok -> Printf.printf "successed\\n"; ok
+                | Failed as failed -> Printf.printf "failed\\n"; failed
+                  >>
+              $ >>
+        else
+          <:expr< $lid:name$ >>
       else
-        <:expr< $aux_function name params$>>
+        if verbose then
+          <:expr< fun input ->
+            Printf.printf "%sCalling %s %s... "
+              (String.make !offset ' ') $str:name$
+              $str:String.escaped (string_of_params params)$;
+            $if mem_rule name rules then
+              <:expr< Printf.printf "\\n"; $aux_function name params$ input >>
+                else 
+              <:expr< match $aux_function name params$ input with
+                | Parsed _ as ok -> Printf.printf "successed\\n"; ok
+                | Failed as failed -> Printf.printf "failed\\n"; failed
+                  >>$ >>
+        else
+          <:expr< $aux_function name params$>>
 
   | Sequence (Pattern (name, expr), xs) ->
     let rules = ((name, []), Epsilon) :: rules in
       <:expr< fun input ->
-        match get_pattern $make_rule_expr _loc rules names params expr$
+        match get_pattern $make_rule_expr _loc rules names params verbose expr$
           input with
           | Parsed (r, input) ->
             let $lid:name$ = match_pattern r in
-              $make_rule_expr _loc rules names params xs$ input
+              $make_rule_expr _loc rules names params verbose xs$ input
           | Failed as failed -> failed
             >>
 
@@ -98,9 +127,9 @@ let rec make_rule_expr _loc rules names params = function
       Ast.paCom_of_list (List.map (fun i -> <:patt< $lid:i$ >>) (var::vars)) in
       
       <:expr< fun input ->
-        match $make_rule_expr _loc rules names params t$ input with
+        match $make_rule_expr _loc rules names params verbose t$ input with
           | Parsed (( $tup:ps$ ), input) ->
-            $make_rule_expr _loc rules names params xs$ input
+            $make_rule_expr _loc rules names params verbose xs$ input
           | Failed as failed -> failed
             >>
                      
@@ -117,15 +146,26 @@ let rec make_rule_expr _loc rules names params = function
         | false, false -> "seq_n"
     in
       <:expr< $lid:seq$ 
-        $make_rule_expr _loc rules names params x1$
-        $make_rule_expr _loc rules names params x2$ >>
+        $make_rule_expr _loc rules names params verbose x1$
+        $make_rule_expr _loc rules names params verbose x2$ >>
 
   | Alternate (x1, x2) ->
-    <:expr< alt $make_rule_expr _loc rules names params x1$
-      $make_rule_expr _loc rules names params x2$ >>
+    <:expr< alt $make_rule_expr _loc rules names params verbose x1$
+      $make_rule_expr _loc rules names params verbose x2$ >>
 
   | Tokenizer t ->
-    <:expr< get_lexeme $make_rule_expr _loc rules names params t$ >>
+    if verbose then
+      <:expr< fun input ->
+        Printf.printf "get_lexeme: %s\\n"
+          (Kmb_input.string_of_current input) ;
+        match get_lexeme $make_rule_expr _loc rules names params verbose t$ input
+        with
+          | Parsed (r, input) as ok ->
+            Printf.printf "get_lexeme result: %S\\n" r.Kmb_input.lexeme; ok
+          | Failed -> Failed
+            >>
+    else
+      <:expr< get_lexeme $make_rule_expr _loc rules names params verbose t$ >>
  
   | Transform ({Kmb_input.start = (line, col); Kmb_input.lexeme = code}, expr) ->
     let code_expr =
@@ -136,48 +176,71 @@ let rec make_rule_expr _loc rules names params = function
         Pervasives.exit 1
     in
       <:expr< transform
-        $make_rule_expr _loc rules names params expr$
+        $make_rule_expr _loc rules names params verbose expr$
         $code_expr$
       >>
 
   | Opt t ->
     let export = should_export rules names t in
       if export then
-        <:expr< opt_accu $make_rule_expr _loc rules names params t$ >>
+        <:expr< opt_accu $make_rule_expr _loc rules names params verbose t$ >>
       else
-        <:expr< opt $make_rule_expr _loc rules names params t$ >>
+        <:expr< opt $make_rule_expr _loc rules names params verbose t$ >>
       
   | Star t ->
     let export = should_export rules names t in
       if export then
-        <:expr< star_accu $make_rule_expr _loc rules names params t$ >>
+        <:expr< star_accu $make_rule_expr _loc rules names params verbose t$ >>
       else
-        <:expr< star $make_rule_expr _loc rules names params t$ >>
+        <:expr< star $make_rule_expr _loc rules names params verbose t$ >>
 
   | Plus t ->
     let export = should_export rules names t in
       if export then
-        <:expr< plus_accu $make_rule_expr _loc rules names params t$ >>
+        <:expr< plus_accu $make_rule_expr _loc rules names params verbose t$ >>
       else
-        <:expr< plus $make_rule_expr _loc rules names params t$ >>
+        <:expr< plus $make_rule_expr _loc rules names params verbose t$ >>
       
   | PredicateNOT t ->
-    <:expr< predicate_not $make_rule_expr _loc rules names params t$ >>
+    <:expr< predicate_not $make_rule_expr _loc rules names params verbose t$ >>
 
   | PredicateAND t ->
-    <:expr< predicate_and $make_rule_expr _loc rules names params t$ >>
+    <:expr< predicate_and $make_rule_expr _loc rules names params verbose t$ >>
       
   | Any ->
-    <:expr< test_any >>
+    if verbose then
+      <:expr< fun input ->
+        Printf.printf "test_any: %s\\n" (Kmb_input.string_of_current input);
+        test_any input
+        >>
+    else
+      <:expr< test_any >>
       
   | Literal chars -> (
     match chars with
-      | [] -> <:expr< >>
-      | [x] -> <:expr< test_char $`int:x$ >>
+      | [] -> assert false
+      | [x] ->
+        if verbose then
+          <:expr< fun input ->
+            Printf.printf "test_char (%S): %s\\n"
+              $str:Kmb_input.string_of_cslit [x]$
+              (Kmb_input.string_of_current input);
+            test_char $`int:x$ input
+            >>
+        else
+          <:expr< test_char $`int:x$ >>
       | _ ->
-        <:expr< match_pattern
-          $List.fold_right (fun c acc ->
-            <:expr< $`int:c$ :: $acc$ >>) chars <:expr< [] >> $ >>
+        let clist =
+          List.fold_right (fun c acc ->
+            <:expr< $`int:c$ :: $acc$ >>) chars <:expr< [] >> in
+          if verbose then
+            <:expr< fun input ->
+              Printf.printf "match_pattern (%S): %s\\n"
+                $str:Kmb_input.string_of_cslit chars$
+                (Kmb_input.string_of_current input);
+              match_pattern $clist$ input >>
+          else
+            <:expr< match_pattern $clist$ >>
   )
   | Class classes ->
     let make_expr = function
@@ -186,29 +249,44 @@ let rec make_rule_expr _loc rules names params = function
       | Char x -> <:expr< c = $`int:x$ >>
     in
       match List.rev classes with
-        | [] -> <:expr< >>
-        | [Char c] -> <:expr< test_char $`int:c$ >>
+        | [] -> assert false
+        | [Char c] ->
+          make_rule_expr _loc rules names params verbose (Literal [c])
         | x :: xs ->
           let exprs =
             List.fold_left (fun acc s ->
               <:expr< $make_expr s$ || $acc$ >>
             ) <:expr< $make_expr x$ >> xs in
-            <:expr< test_class (fun c -> $exprs$) >>
+            if verbose then
+              <:expr< fun input ->
+                Printf.printf "test_class: %s\\n"
+                  (Kmb_input.string_of_current input);
+                test_class (fun c -> $exprs$) input
+                >>
+            else
+              <:expr< test_class (fun c -> $exprs$) >>
         
-
 let make_rule_body _loc verbose name params expr rules =
-  if verbose then
+  if verbose then (
     <:expr<
-      Printf.printf "Trying %s... " $str:name$;
-  let result = $make_rule_expr _loc  rules [name] params expr$ input in
-    (match result with
-      | Failed -> Printf.printf "Failed %s\n" $str:name$
-      | Parsed _ -> Printf.printf "Success %s\n" $str:name$
-    );
-    result
-    >>
-        else 
-  <:expr< $make_rule_expr _loc rules [name] params expr$ input >>
+      Printf.printf "%sTrying %s\\n"
+      (if !offset > 0 then String.make !offset ' ' else "")
+      $str:String.escaped (string_of_rule ((name, params), expr))$;
+    incr offset;
+    let result = $make_rule_expr _loc  rules [name] params verbose expr$ input in
+      (match result with
+        | Failed -> decr offset; Printf.printf "%sFailed %s\\n"
+          (if !offset > 0 then String.make !offset ' ' else "")
+          $str:name$
+        | Parsed _ -> decr offset; Printf.printf "%sSuccess %s\\n"
+          (if !offset > 0 then String.make !offset ' ' else "")
+          $str:name$
+      );
+      result
+      >>
+  )
+  else 
+  <:expr< $make_rule_expr _loc rules [name] params verbose expr$ input >>
   
 let make_rule_function _loc verbose (name, params) expr rules =
   printf "Generating for rule %s\n" name;
@@ -241,6 +319,10 @@ let  try_optimize rules =
         | None -> Alternate (aux_optimize a1, aux_optimize a2)
         | Some r -> r
     )
+    | Sequence (Literal l1, Literal l2) ->
+      Literal (l1 @  l2)
+    | Sequence (Literal l1, Sequence (Literal l2, tail)) ->
+      aux_optimize (Sequence (Literal (l1 @ l2), tail))
     | Sequence (s1, s2) ->
       Sequence (aux_optimize s1, aux_optimize s2)
     | Opt t -> Opt (aux_optimize t)
@@ -248,6 +330,9 @@ let  try_optimize rules =
     | Star t -> Star (aux_optimize t)
     | Tokenizer t -> Tokenizer (aux_optimize t)
     | Transform (f, t) -> Transform (f, aux_optimize t)
+    | PredicateAND t -> PredicateAND (aux_optimize t)
+    | PredicateNOT t -> PredicateNOT (aux_optimize t)
+    | Bind (v, vs, t) -> Bind (v, vs, aux_optimize t)
     | other -> other
   in
     List.map (fun (name, expr) -> name, aux_optimize expr) rules

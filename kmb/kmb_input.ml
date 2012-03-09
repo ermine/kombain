@@ -52,7 +52,16 @@ let read_file file =
     String.concat "\n" lines ^ "\n"
 
 let get_current input =
-  Printf.printf "get_current %d:%d %C\n" input.line input.col
-    input.buf.[input.pos];
   Char.code (input.buf.[input.pos])
 
+let string_of_current input =
+  if input.pos < input.len then
+    Printf.sprintf "%d:%d %C" input.line input.col input.buf.[input.pos]
+  else
+    "end_of_file"
+
+let string_of_cslit clist =
+  String.escaped (
+    String.concat "" (List.map (fun c ->
+      String.make 1 (if c < 255 then Char.chr c else '*')) clist))
+      
