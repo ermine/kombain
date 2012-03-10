@@ -58,7 +58,7 @@ let string_of_current input =
   if input.pos < input.len then
     Printf.sprintf "%d:%d %C" input.line input.col input.buf.[input.pos]
   else
-    "end_of_file"
+    "eof"
 
 let string_of_cslit clist =
   String.escaped (

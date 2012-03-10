@@ -12,8 +12,6 @@ let () =
       | Failed ->
         Printf.printf "failed";
       | Parsed ((dcl, (start, ast)), rest) ->
-        List.iter (fun rule ->
-          Printf.printf "%s\n\n" (string_of_rule rule)) ast;
         let start_rule =
           match start with
             | Some name -> name.lexeme

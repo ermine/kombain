@@ -81,7 +81,8 @@ let rec make_rule_expr _loc rules names params verbose = function
       if params = [] then
         if verbose then
           <:expr< fun input ->
-            Printf.printf "%sCalling %s... "
+            Printf.printf "%s %sCalling %s... "
+              (Kmb_input.string_of_current input)
               (String.make !offset ' ') $str:name$;
             $if mem_rule name rules then
               <:expr< Printf.printf "\\n"; $lid:name$ input >>
@@ -96,7 +97,8 @@ let rec make_rule_expr _loc rules names params verbose = function
       else
         if verbose then
           <:expr< fun input ->
-            Printf.printf "%sCalling %s %s... "
+            Printf.printf "%s %sCalling %s(%s)... "
+              (Kmb_input.string_of_current input)
               (String.make !offset ' ') $str:name$
               $str:String.escaped (string_of_params params)$;
             $if mem_rule name rules then
@@ -156,12 +158,14 @@ let rec make_rule_expr _loc rules names params verbose = function
   | Tokenizer t ->
     if verbose then
       <:expr< fun input ->
-        Printf.printf "get_lexeme: %s\\n"
+        Printf.printf "%s get_lexeme\\n"
           (Kmb_input.string_of_current input) ;
         match get_lexeme $make_rule_expr _loc rules names params verbose t$ input
         with
           | Parsed (r, input) as ok ->
-            Printf.printf "get_lexeme result: %S\\n" r.Kmb_input.lexeme; ok
+            Printf.printf "%s get_lexeme result: %S\\n"
+              (Kmb_input.string_of_current input)
+              r.Kmb_input.lexeme; ok
           | Failed -> Failed
             >>
     else
@@ -210,7 +214,7 @@ let rec make_rule_expr _loc rules names params verbose = function
   | Any ->
     if verbose then
       <:expr< fun input ->
-        Printf.printf "test_any: %s\\n" (Kmb_input.string_of_current input);
+        Printf.printf "%s test_any\\n" (Kmb_input.string_of_current input);
         test_any input
         >>
     else
@@ -222,9 +226,9 @@ let rec make_rule_expr _loc rules names params verbose = function
       | [x] ->
         if verbose then
           <:expr< fun input ->
-            Printf.printf "test_char (%S): %s\\n"
-              $str:Kmb_input.string_of_cslit [x]$
-              (Kmb_input.string_of_current input);
+            Printf.printf "%s test_char %S\\n"
+              (Kmb_input.string_of_current input)
+              $str:Kmb_input.string_of_cslit [x]$;
             test_char $`int:x$ input
             >>
         else
@@ -235,9 +239,9 @@ let rec make_rule_expr _loc rules names params verbose = function
             <:expr< $`int:c$ :: $acc$ >>) chars <:expr< [] >> in
           if verbose then
             <:expr< fun input ->
-              Printf.printf "match_pattern (%S): %s\\n"
-                $str:Kmb_input.string_of_cslit chars$
-                (Kmb_input.string_of_current input);
+              Printf.printf "%s match_pattern %S\\n"
+                (Kmb_input.string_of_current input)
+                $str:Kmb_input.string_of_cslit chars$;
               match_pattern $clist$ input >>
           else
             <:expr< match_pattern $clist$ >>
@@ -259,7 +263,7 @@ let rec make_rule_expr _loc rules names params verbose = function
             ) <:expr< $make_expr x$ >> xs in
             if verbose then
               <:expr< fun input ->
-                Printf.printf "test_class: %s\\n"
+                Printf.printf "%s test_class\\n"
                   (Kmb_input.string_of_current input);
                 test_class (fun c -> $exprs$) input
                 >>
@@ -269,16 +273,19 @@ let rec make_rule_expr _loc rules names params verbose = function
 let make_rule_body _loc verbose name params expr rules =
   if verbose then (
     <:expr<
-      Printf.printf "%sTrying %s\\n"
+      Printf.printf "%s %sTrying %s\\n"
+      (Kmb_input.string_of_current input)
       (if !offset > 0 then String.make !offset ' ' else "")
       $str:String.escaped (string_of_rule ((name, params), expr))$;
     incr offset;
     let result = $make_rule_expr _loc  rules [name] params verbose expr$ input in
       (match result with
-        | Failed -> decr offset; Printf.printf "%sFailed %s\\n"
+        | Failed -> decr offset; Printf.printf "%s %sFailed %s\\n"
+          (Kmb_input.string_of_current input)
           (if !offset > 0 then String.make !offset ' ' else "")
           $str:name$
-        | Parsed _ -> decr offset; Printf.printf "%sSuccess %s\\n"
+        | Parsed _ -> decr offset; Printf.printf "%s %sSuccess %s\\n"
+          (Kmb_input.string_of_current input)
           (if !offset > 0 then String.make !offset ' ' else "")
           $str:name$
       );

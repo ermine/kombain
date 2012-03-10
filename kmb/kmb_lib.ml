@@ -21,7 +21,7 @@ let predicate_not cond input =
 
 let predicate_and cond input =
   match cond input with
-    | Parsed _ -> Parsed ((), input)
+    | Parsed (r, _) -> Parsed (r, input)
     | Failed as failed -> failed
 
 let peg_stub input = Parsed ((), input)
