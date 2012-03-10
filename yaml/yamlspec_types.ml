@@ -85,6 +85,7 @@ let na = 0 (* shoild fail *)
 let minusodin = (-1)
   
 let add n m = n + m
+let neg n = (-n)
 
 let sol input =
   let open Kmb_input in
@@ -266,3 +267,9 @@ let cleanup_rule ((name, ps), expr) =
 let pmax n m input = Parsed ((max n m), input)
   
 
+(*
+type yaml =
+  | Scalar of string
+  | Pair of scalar * yaml
+  | Block of yaml list
+*)

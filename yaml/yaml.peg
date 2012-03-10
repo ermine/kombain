@@ -7,19 +7,20 @@ open Yamlspec_types
 
 # helpers
 detect_collection_indentation(n) <-
-    &(l_comment*) count_spaces(pred(n))
+    &(l_comment* count_spaces(neg(n)))
 
 count_spaces(n) <- s_space (count_spaces(succ(n)) { fun i -> i }) / pmax(1,n)
 
-detect_inline_indentation <- count_spaces(0)
+detect_inline_indentation <- &(count_spaces(0))
 
-detect_scalar_indentation(n) <- &(nb_char*)
+detect_scalar_indentation(n) <- &(nb_char*
                                    (b_non_content (l_empty(n,"block-in")*)?)
-                                   count_spaces(pred(n))
+                                   count_spaces(neg(n)))
 
 
 # [1]
-c_printable <- "\t" / "\n" / "\r" / [ -~] / "…" / [ -\xD7FF] / [\xE000-\xFFFD] / [\x10000-\x10FFFF]
+c_printable <- "\t" / "\n" / "\r" / [ -~] / "…" / [ -\xD7FF] 
+             / [\xE000-\xFFFD] / [\x10000-\x10FFFF]
 
 # [2]
 nb_json <- "\t" / [ -\x10FFFF]
