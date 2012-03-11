@@ -5,7 +5,11 @@ open Kmb_grammar
 let _ = Printexc.record_backtrace true
 
 let () =
-  let file = Sys.argv.(1) in
+  let verbose =
+    if Array.length Sys.argv > 2 &&
+      (Sys.argv.(1) = "-v" || Sys.argv.(1) = "--verbose") then true else false in
+  let file = Sys.argv.(if verbose then 2 else 1) in
+  let outfile = Sys.argv.(if verbose then 3 else 2) in
   let content = read_file file in
   let result = Peg_parser.parse content in
     match result with
@@ -20,4 +24,4 @@ let () =
                 | [] -> assert false
                 | ((name, _), _) :: _ -> name
         in
-          Kmb_generator.generate true dcl ast start_rule Sys.argv.(2)
+          Kmb_generator.generate verbose dcl ast start_rule outfile

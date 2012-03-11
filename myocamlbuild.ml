@@ -485,7 +485,11 @@ let () =
           (fun env _ ->
             let peg = env "%.peg"
             and code = env "%_parser.ml" in
-              Cmd (S[ Px"kmb/kombain.byte"; A peg; A code]));
+            let tags = Ocamlbuild_pack.Tools.tags_of_pathname peg in
+              if Ocamlbuild_pack.Tags.mem "kombain_verbose" tags then
+                Cmd (S[ Px"kmb/kombain.byte"; A"--verbose"; A peg; A code])
+              else
+                Cmd (S[ Px"kmb/kombain.byte"; A peg; A code]));
 
         rule "make xml.peg"
           ~prod:"xml/xml.peg"

@@ -1,4 +1,4 @@
-true: debug
+true: debug, kombain_verbose
 
 <kmb/kmb_generator.ml>: use_camlp4_full, camlp4of
 <kmb/kombain_init.{byte,native}>: use_camlp4_full
