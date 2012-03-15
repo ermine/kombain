@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: bddcc89a7aaaf2c3c18d44cedd4b64e1) *)
+(* DO NOT EDIT (digest: 582e5f71b0da078e975e242205af1e2b) *)
 module OASISGettext = struct
 # 21 "/usr/home/ermine/projects/ocaml/src/oasis/src/oasis/OASISGettext.ml"
   
@@ -417,6 +417,9 @@ module MyOCamlbuildBase = struct
                    dep  ["link"; "ocaml"; "use_lib"^lib] 
                      [dir/"lib"^lib^"."^(!Options.ext_lib)];
   
+                   dep  ["compile"; "ocaml"; "use_lib"^lib] 
+                     [dir/"lib"^lib^"."^(!Options.ext_lib)];
+  
                    (* TODO: be more specific about what depends on headers *)
                    (* Depends on .h files *)
                    dep ["compile"; "c"] 
@@ -460,7 +463,7 @@ let package_default =
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 464 "myocamlbuild.ml"
+# 467 "myocamlbuild.ml"
 (* OASIS_STOP *)
 
 let () =

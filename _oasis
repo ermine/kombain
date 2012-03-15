@@ -28,6 +28,11 @@ Executable markdown_test
   MainIs:	markdown_test.ml
   BuildDepends:	kmb
 
+Executable md2html
+  Path:		markdown
+  MainIs:	md2html.ml
+  BuildDepends:	tyxml
+
 Executable textile_test
   Path:		textile
   MainIs:	textile_test.ml

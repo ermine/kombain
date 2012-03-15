@@ -17,13 +17,15 @@ blockQuote      <- (blockQuoteLine+ (!blankLine < anyLine > )* blankLine*)+
                    { make_blackquote }
 
 verbatim        <- (!blankLine indentedLine)+
-                   ((indent? blankLine)+ (!blankLine indentedLine)+)* blankLine*
-                   { fun (i1, i2) -> 
+                   ((indent? blankLine {fun () -> "\n" } )+ 
+                   (!blankLine indentedLine)+
+                   { fun (s1, s2) -> List.concat [s1;s2] })* blankLine*
+                   { fun (i1, i2) ->
                        Verbatim (String.concat "" 
-                                ((List.concat [i1; List.concat i2]))) }
+                                ((List.concat [i1; List.concat i2])))}
 
 indentedLine    <- indent < anyLine > { fun {lexeme} -> lexeme }
-anyLine         <- (!newLine !endOfFile .)* newLine?
+anyLine         <- (!newLine .)* newLine?
 
 reference       <- nonIndentSpace label ':' spnl < (!spaceChar !newLine .)+ >
                    spnl title? blankLine*
@@ -35,12 +37,13 @@ horizontalRule  <- nonIndentSpace (('*' sp '*' sp '*' (sp '*')*)
                    newLine blankLine+ # the + causes problems at the end of file
                    { fun _ -> HorizontalRule }
 
-para            <- inline+ newLine blankLine+ { fun inlines -> Para inlines }
+para            <- inline+ newLine blankLine+ 
+                   { fun inlines -> Para inlines }
 plain           <- inline+ blankLine?         { fun inlines -> Plain inlines }
 
 blankLine       <- sp newLine
 
-inline          <- strong / emph / code / endLine / spaces / link / image 
+inline          <- strong / emph / code / endLine2 / spaces / link / image 
                  / autoLink / rawHTML / str / entity / special 
 
 spaces          <- spaceChar+ { fun () -> Space }
@@ -139,7 +142,7 @@ bulletListItem  <- !horizontalRule bullet listBlock listContinuationBlock*
 
 listBlock       <- < anyLine > (!(indent? (bulletListItem / orderedListItem))
                    !blankLine !(indent (bullet / enumerator))
-                   optionallyIndentedLine)+
+                   optionallyIndentedLine)*
                    { fun (l1, ls) ->
                        String.concat "" (l1.lexeme ::
                                         List.map (fun l -> l.lexeme) ls) }
@@ -147,7 +150,7 @@ listBlock       <- < anyLine > (!(indent? (bulletListItem / orderedListItem))
 optionallyIndentedLine <- indent < anyLine >
 
 listContinuationBlock <- (< blankLine+ > {fun {lexeme} -> lexeme } 
-                          / { fun () -> "\000" })
+                          / { fun () -> "\n" })
                          (indent listBlock)+
                          { fun (bl, lbs) -> String.concat "" (bl :: lbs) }
 
@@ -181,6 +184,8 @@ escapedChar     <- '\\' .
 specialChar     <- [*_`&\[\]<!\\]
 normalChar      <- escapedChar / !(specialChar / ' ' / newLine) .
 endLine         <- ' '? newLine !blankLine !endOfFile { fun () -> Space }
+endLine2        <- ' '? newLine !indent !blankLine !endOfFile { fun () -> Space }
+
 entity          <- '&'  < '#' ('x' / 'X') hexDigit+ 
                           / '#' digit+ 
                           / alphaNum+ > ';' { fun {lexeme} -> Entity lexeme }

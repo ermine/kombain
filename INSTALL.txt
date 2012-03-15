@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 9bdc2e9ba42fe8bf470abb89018f1b16) *)
+(* DO NOT EDIT (digest: 8c85dd1b635bb9884272c347dc7ff328) *)
 This is the INSTALL file for the kombain distribution.
 
 This package uses OASIS to generate its build system. See section OASIS for
@@ -11,6 +11,7 @@ Dependencies
 In order to compile this package, you will need:
 * ocaml
 * findlib
+* tyxml for executable md2html
 
 Installing
 ==========
