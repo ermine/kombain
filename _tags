@@ -1,4 +1,4 @@
-true: debug, kombain_verbose
+true: debug
 
 <kmb/kmb_generator.ml>: use_camlp4_full, camlp4of
 <kmb/kombain_init.{byte,native}>: use_camlp4_full
@@ -6,7 +6,7 @@ true: debug, kombain_verbose
 <kmb/kmb_grammar.ml>: use_camlp4
 
 # OASIS_START
-# DO NOT EDIT (digest: 8d70f2aca463c35c7fdc05f97f368fd0)
+# DO NOT EDIT (digest: 80c56307a008e2db710d9e9ce5390c3b)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -28,6 +28,9 @@ true: debug, kombain_verbose
 # Executable abnf2peg
 "abnf/abnf2peg.byte": use_kmb
 <abnf/*.ml{,i}>: use_kmb
+# Executable md2html
+"markdown/md2html.byte": pkg_tyxml
+<markdown/*.ml{,i}>: pkg_tyxml
 # Executable kombain
 "kmb/kombain.byte": pkg_dynlink
 # Executable xmlebnfreader
