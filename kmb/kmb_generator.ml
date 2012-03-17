@@ -371,6 +371,11 @@ let generate verbose declaration rules start_rule output_file =
     Caml.print_implem ~output_file
     <:str_item<
       open Kmb_lib
+
+      $if verbose then
+            <:str_item< let offset = ref 0 >>
+          else
+            <:str_item< >>$
       
       $match declaration with
         | Some dcl ->
