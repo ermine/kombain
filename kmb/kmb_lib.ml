@@ -5,14 +5,12 @@ type 'a result =
   | Parsed of 'a * input
   | Failed
 
-let offset = ref 0
-
 let return r input = Parsed (r, input)      
 
 let transform r f input =
   match r input  with
     | Parsed (v, input) -> Parsed (f v, input)
-    | Failed as failed -> failed
+    | Failed -> Failed
 
 let predicate_not cond input =
   match cond input with
@@ -22,13 +20,13 @@ let predicate_not cond input =
 let predicate_and cond input =
   match cond input with
     | Parsed (r, _) -> Parsed (r, input)
-    | Failed as failed -> failed
+    | Failed -> Failed
 
 let peg_stub input = Parsed ((), input)
   
 let opt cond input =
   match cond input with
-    | Parsed (_, input) -> Parsed ((), input)
+    | Parsed ((), input) as ok -> ok
     | Failed -> Parsed ((), input)
 
 let opt_accu cond input =
@@ -51,8 +49,7 @@ let test_any input =
   if end_of_file input then
     Failed
   else
-    let _curr = get_current input in
-      Parsed ((), incr_pos input)
+    Parsed ((), incr_pos input)
 
 let test_char c input =
   if end_of_file input then
@@ -103,40 +100,34 @@ let get_pattern cond input =
           Parsed (chars, input)
       | Failed -> Failed
 
-let seq a b input =
-  match a input with
-    | Failed as failed -> failed
-    | Parsed ((), input) -> b input
-          
-
 let seq_l a b input =
   match a input with
-    | Failed as failed -> failed
+    | Failed -> Failed
     | Parsed (r, input) ->
       match b input with
         | Parsed ((), input) -> return r input
-        | Failed as failed -> failed
+        | Failed -> Failed
 
 let seq_r a b input =
   match a input with
-    | Parsed (_, input) -> b input
-    | Failed as failed -> failed
+    | Parsed ((), input) -> b input
+    | Failed -> Failed
 
 let seq_n a b input =
     match a input with
-      | Failed as failed -> failed
-      | Parsed (_, input) ->
+      | Failed -> Failed
+      | Parsed ((), input) ->
         match b input with
-          | Parsed (_, input) -> Parsed ((), input)
-          | Failed as failed -> failed
+          | Parsed ((), input) as ok -> ok
+          | Failed -> Failed
 
 let seq_b a b input =
   match a input with
-    | Failed as failed -> failed
+    | Failed -> Failed
     | Parsed (r1, input) ->
       match b input with
         | Parsed (r2, input) -> Parsed ((r1, r2), input)
-        | Failed as failed -> failed
+        | Failed -> Failed
 
 let alt a b input =
   match a input with
@@ -147,7 +138,7 @@ let alt a b input =
 let rec star cond input =
   let curr_pos = input.pos in
     match cond input with
-      | Parsed (_, input) ->
+      | Parsed ((), input) ->
         if curr_pos = input.pos then
           Parsed ((), input)
         else
@@ -169,8 +160,8 @@ let star_accu cond input =
 
 let plus cond input =
   match cond input with
-    | Parsed (_, input) -> star cond input
-    | Failed as failed -> failed
+    | Parsed ((), input) -> star cond input
+    | Failed -> Failed
 
 let plus_accu cond input =
   transform (seq_b cond (star_accu cond))

@@ -174,7 +174,7 @@ let rec make_rule_expr _loc rules names params verbose = function
   | Transform ({Kmb_input.start = (line, col); Kmb_input.lexeme = code}, expr) ->
     let code_expr =
       try Caml.AntiquotSyntax.parse_expr Loc.ghost code
-      with exn ->
+      with Loc.Exc_located (_, exn) ->
         printf "Bad action %d:%d %S\n" line col code;
         printf "Exception: %s\n" (Printexc.to_string exn);
         Pervasives.exit 1
