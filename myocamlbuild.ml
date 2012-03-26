@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 582e5f71b0da078e975e242205af1e2b) *)
+(* DO NOT EDIT (digest: 41a3d32084717e60bb80213bc7bc3b7d) *)
 module OASISGettext = struct
 # 21 "/usr/home/ermine/projects/ocaml/src/oasis/src/oasis/OASISGettext.ml"
   
@@ -330,19 +330,24 @@ module MyOCamlbuildBase = struct
   
   
   open Ocamlbuild_plugin
+  module OC = Ocamlbuild_pack.Ocaml_compiler
   
   type dir = string 
   type file = string 
   type name = string 
   type tag = string 
   
-# 55 "/usr/home/ermine/projects/ocaml/src/oasis/src/plugins/ocamlbuild/MyOCamlbuildBase.ml"
+# 56 "/usr/home/ermine/projects/ocaml/src/oasis/src/plugins/ocamlbuild/MyOCamlbuildBase.ml"
   
   type t =
       {
         lib_ocaml: (name * dir list) list;
         lib_c:     (name * dir * file list) list; 
         flags:     (tag list * (spec OASISExpr.choices)) list;
+        (* Replace the 'dir: include' from _tags by a precise interdepends in
+         * directory.
+         *)
+        includes:  (dir * dir list) list; 
       } 
   
   let env_filename =
@@ -354,6 +359,12 @@ module MyOCamlbuildBase = struct
       List.iter 
         (fun dispatch -> dispatch e)
         lst 
+  
+  let tag_libstubs nm =
+    "use_lib"^nm^"_stubs"
+  
+  let nm_libstubs nm =
+    nm^"_stubs"
   
   let dispatch t e = 
     let env = 
@@ -382,43 +393,123 @@ module MyOCamlbuildBase = struct
                   Options.ext_dll, "ext_dll";
                 ]
   
+        | Before_rules ->
+          (* TODO: move this into its own file and conditionnaly include it, if
+           * needed.
+           *)
+          (* OCaml cmxs rules: cmxs available in ocamlopt but not ocamlbuild.
+             Copied from ocaml_specific.ml in ocamlbuild sources. *)
+          let has_native_dynlink =
+            try
+              bool_of_string (BaseEnvLight.var_get "native_dynlink" env)
+            with Not_found ->
+              false
+          in
+          if has_native_dynlink && String.sub Sys.ocaml_version 0 4 = "3.11" then
+            begin
+              let ext_lib = !Options.ext_lib in
+              let ext_obj = !Options.ext_obj in
+              let ext_dll = !Options.ext_dll in
+              let x_o = "%"-.-ext_obj in
+              let x_a = "%"-.-ext_lib in
+              let x_dll = "%"-.-ext_dll in
+              let x_p_o = "%.p"-.-ext_obj in
+              let x_p_a = "%.p"-.-ext_lib in
+              let x_p_dll = "%.p"-.-ext_dll in
+  
+              rule "ocaml: mldylib & p.cmx* & p.o* -> p.cmxs & p.so"
+                   ~tags:["ocaml"; "native"; "profile"; "shared"; "library"]
+                   ~prods:["%.p.cmxs"; x_p_dll]
+                   ~dep:"%.mldylib"
+                   (OC.native_profile_shared_library_link_mldylib
+                      "%.mldylib" "%.p.cmxs");
+  
+              rule "ocaml: mldylib & cmx* & o* -> cmxs & so"
+                   ~tags:["ocaml"; "native"; "shared"; "library"]
+                   ~prods:["%.cmxs"; x_dll]
+                   ~dep:"%.mldylib"
+                   (OC.native_shared_library_link_mldylib
+                      "%.mldylib" "%.cmxs");
+  
+              rule "ocaml: p.cmx & p.o -> p.cmxs & p.so"
+                   ~tags:["ocaml"; "native"; "profile"; "shared"; "library"]
+                   ~prods:["%.p.cmxs"; x_p_dll]
+                   ~deps:["%.p.cmx"; x_p_o]
+                   (OC.native_shared_library_link ~tags:["profile"]
+                                                  "%.p.cmx" "%.p.cmxs");
+  
+              rule "ocaml: p.cmxa & p.a -> p.cmxs & p.so"
+                   ~tags:["ocaml"; "native"; "profile"; "shared"; "library"]
+                   ~prods:["%.p.cmxs"; x_p_dll]
+                   ~deps:["%.p.cmxa"; x_p_a]
+                   (OC.native_shared_library_link ~tags:["profile"; "linkall"]
+                                                  "%.p.cmxa" "%.p.cmxs");
+  
+              rule "ocaml: cmx & o -> cmxs"
+                   ~tags:["ocaml"; "native"; "shared"; "library"]
+                   ~prods:["%.cmxs"]
+                   ~deps:["%.cmx"; x_o]
+                   (OC.native_shared_library_link "%.cmx" "%.cmxs");
+  
+              rule "ocaml: cmx & o -> cmxs & so"
+                   ~tags:["ocaml"; "native"; "shared"; "library"]
+                   ~prods:["%.cmxs"; x_dll]
+                   ~deps:["%.cmx"; x_o]
+                   (OC.native_shared_library_link "%.cmx" "%.cmxs");
+  
+              rule "ocaml: cmxa & a -> cmxs & so"
+                   ~tags:["ocaml"; "native"; "shared"; "library"]
+                   ~prods:["%.cmxs"; x_dll]
+                   ~deps:["%.cmxa"; x_a]
+                   (OC.native_shared_library_link ~tags:["linkall"]
+                                                  "%.cmxa" "%.cmxs");
+            end
+  
         | After_rules -> 
             (* Declare OCaml libraries *)
             List.iter 
               (function
-                 | lib, [] ->
-                     ocaml_lib lib;
-                 | lib, dir :: tl ->
-                     ocaml_lib ~dir:dir lib;
+                 | nm, [] ->
+                     ocaml_lib nm
+                 | nm, dir :: tl ->
+                     ocaml_lib ~dir:dir (dir^"/"^nm);
                      List.iter 
                        (fun dir -> 
-                          flag 
-                            ["ocaml"; "use_"^lib; "compile"] 
-                            (S[A"-I"; P dir]))
+                          List.iter
+                            (fun str ->
+                               flag ["ocaml"; "use_"^nm; str] (S[A"-I"; P dir]))
+                            ["compile"; "infer_interface"; "doc"])
                        tl)
               t.lib_ocaml;
+  
+            (* Declare directories dependencies, replace "include" in _tags. *)
+            List.iter 
+              (fun (dir, include_dirs) ->
+                 Pathname.define_context dir include_dirs)
+              t.includes;
   
             (* Declare C libraries *)
             List.iter
               (fun (lib, dir, headers) ->
                    (* Handle C part of library *)
-                   flag ["link"; "library"; "ocaml"; "byte"; "use_lib"^lib]
-                     (S[A"-dllib"; A("-l"^lib); A"-cclib"; A("-l"^lib)]);
+                   flag ["link"; "library"; "ocaml"; "byte"; tag_libstubs lib]
+                     (S[A"-dllib"; A("-l"^(nm_libstubs lib)); A"-cclib";
+                        A("-l"^(nm_libstubs lib))]);
   
-                   flag ["link"; "library"; "ocaml"; "native"; "use_lib"^lib]
-                     (S[A"-cclib"; A("-l"^lib)]);
+                   flag ["link"; "library"; "ocaml"; "native"; tag_libstubs lib]
+                     (S[A"-cclib"; A("-l"^(nm_libstubs lib))]);
                         
-                   flag ["link"; "program"; "ocaml"; "byte"; "use_lib"^lib]
-                     (S[A"-dllib"; A("dll"^lib)]);
+                   flag ["link"; "program"; "ocaml"; "byte"; tag_libstubs lib]
+                     (S[A"-dllib"; A("dll"^(nm_libstubs lib))]);
   
                    (* When ocaml link something that use the C library, then one
                       need that file to be up to date.
                     *)
-                   dep  ["link"; "ocaml"; "use_lib"^lib] 
-                     [dir/"lib"^lib^"."^(!Options.ext_lib)];
+                   dep  ["link"; "ocaml"; "program"; tag_libstubs lib]
+                     [dir/"lib"^(nm_libstubs lib)^"."^(!Options.ext_lib)];
   
-                   dep  ["compile"; "ocaml"; "use_lib"^lib] 
-                     [dir/"lib"^lib^"."^(!Options.ext_lib)];
+                   dep  ["compile"; "ocaml"; "program"; tag_libstubs lib]
+                     [dir/"lib"^(nm_libstubs lib)^"."^(!Options.ext_lib)];
   
                    (* TODO: be more specific about what depends on headers *)
                    (* Depends on .h files *)
@@ -455,15 +546,24 @@ end
 open Ocamlbuild_plugin;;
 let package_default =
   {
-     MyOCamlbuildBase.lib_ocaml = [("kmb/kmb", ["kmb"])];
+     MyOCamlbuildBase.lib_ocaml = [("kmb", ["kmb"])];
      lib_c = [];
      flags = [];
+     includes =
+       [
+          ("yaml", ["kmb"]);
+          ("xml", ["kmb"]);
+          ("textile", ["kmb"]);
+          ("markdown", ["kmb"]);
+          ("bbcode", ["kmb"]);
+          ("abnf", ["kmb"])
+       ];
      }
   ;;
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 467 "myocamlbuild.ml"
+# 567 "myocamlbuild.ml"
 (* OASIS_STOP *)
 
 let () =

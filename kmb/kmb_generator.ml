@@ -78,38 +78,35 @@ let rec make_rule_expr _loc rules names params verbose = function
         List.fold_left (fun args arg -> <:expr< $args$ $make_arg arg$ >>)
         <:expr< $lid:name$ >> ps
     in
+    let e =
       if params = [] then
-        if verbose then
-          <:expr< fun input ->
-            Printf.printf "%s %sCalling %s... "
-              (Kmb_input.string_of_current input)
-              (String.make !offset ' ') $str:name$;
-            $if mem_rule name rules then
-              <:expr< Printf.printf "\\n"; $lid:name$ input >>
-            else
-              <:expr< match $lid:name$ input with
-                | Parsed _ as ok -> Printf.printf "successed\\n"; ok
-                | Failed as failed -> Printf.printf "failed\\n"; failed
-                  >>
-              $ >>
-        else
-          <:expr< $lid:name$ >>
+        <:expr< $lid:name$ >>
       else
-        if verbose then
-          <:expr< fun input ->
-            Printf.printf "%s %sCalling %s(%s)... "
-              (Kmb_input.string_of_current input)
-              (String.make !offset ' ') $str:name$
-              $str:String.escaped (string_of_params params)$;
-            $if mem_rule name rules then
-              <:expr< Printf.printf "\\n"; $aux_function name params$ input >>
-                else 
-              <:expr< match $aux_function name params$ input with
-                | Parsed _ as ok -> Printf.printf "successed\\n"; ok
-                | Failed as failed -> Printf.printf "failed\\n"; failed
-                  >>$ >>
-        else
-          <:expr< $aux_function name params$>>
+        <:expr< $aux_function name params$ >>
+    in
+      if verbose then
+        <:expr< fun input ->
+          $if mem_rule name rules then
+            <:expr< Printf.printf "%s %sTrying %s %s...\\n"
+              (Kmb_input.string_of_current input) (get_offset ())
+              $str:name$ $str:String.escaped (string_of_params params)$ >>
+          else
+            <:expr< Printf.printf "%s %sCalling external function %s %s\\n"
+              (Kmb_input.string_of_current input) (get_offset ())
+              $str:name$ $str:String.escaped (string_of_params params)$ >>
+              $;
+      incr offset;
+      let r = $e$ input in
+        decr offset;
+        match r with
+          | Parsed _ as ok -> Printf.printf "%s %sSuccess %s\\n"
+            (Kmb_input.string_of_current input) (get_offset ()) $str:name$;
+            ok
+          | Failed -> Printf.printf "%s %sFailed %s\\n"
+            (Kmb_input.string_of_current input) (get_offset ()) $str:name$;
+            Failed
+            >>
+            else e
 
   | Sequence (Pattern (name, expr), xs) ->
     let rules = ((name, []), Epsilon) :: rules in
@@ -263,43 +260,19 @@ let rec make_rule_expr _loc rules names params verbose = function
             ) <:expr< $make_expr x$ >> xs in
             if verbose then
               <:expr< fun input ->
-                Printf.printf "%s test_class\\n"
-                  (Kmb_input.string_of_current input);
+                Printf.printf "%s test_class %s\\n"
+                  (Kmb_input.string_of_current input)
+                  $str:String.escaped (Kmb_grammar.string_of_class classes)$;
                 test_class (fun c -> $exprs$) input
                 >>
             else
               <:expr< test_class (fun c -> $exprs$) >>
         
-let make_rule_body _loc verbose name params expr rules =
-  if verbose then (
-    <:expr<
-      Printf.printf "%s %sTrying %s\\n"
-      (Kmb_input.string_of_current input)
-      (if !offset > 0 then String.make !offset ' ' else "")
-      $str:String.escaped (string_of_rule ((name, params), expr))$;
-    incr offset;
-    let result = $make_rule_expr _loc  rules [name] params verbose expr$ input in
-      (match result with
-        | Failed -> decr offset; Printf.printf "%s %sFailed %s\\n"
-          (Kmb_input.string_of_current input)
-          (if !offset > 0 then String.make !offset ' ' else "")
-          $str:name$
-        | Parsed _ -> decr offset; Printf.printf "%s %sSuccess %s\\n"
-          (Kmb_input.string_of_current input)
-          (if !offset > 0 then String.make !offset ' ' else "")
-          $str:name$
-      );
-      result
-      >>
-  )
-  else 
-  <:expr< $make_rule_expr _loc rules [name] params verbose expr$ input >>
-  
 let make_rule_function _loc verbose (name, params) expr rules =
   printf "Generating for rule %s\n" name;
   let e =
     List.fold_left (fun expr arg -> <:expr< fun $lid:arg$ -> $expr$ >>)
-      (make_rule_body _loc verbose name params expr rules)
+    <:expr< $make_rule_expr _loc rules [name] params verbose expr$ input >>
       ("input" :: List.rev params)
   in
     <:str_item< let $lid:name$ = $e$ >>
@@ -360,7 +333,8 @@ let generate verbose declaration rules start_rule output_file =
             printf "Generating for rule %s\n" name;
             let e =
               List.fold_left (fun expr arg -> <:expr< fun $lid:arg$ -> $expr$ >>)
-                (make_rule_body _loc verbose name params expr rules)                
+                <:expr< $make_rule_expr _loc rules [name] params verbose expr$
+                input >>
                 ("input" :: List.rev params)
             in
               <:binding< $lid:name$ = $e$ >>
@@ -373,7 +347,10 @@ let generate verbose declaration rules start_rule output_file =
       open Kmb_lib
 
       $if verbose then
-            <:str_item< let offset = ref 0 >>
+            <:str_item< let offset = ref 0
+                        let get_offset () =
+                          if !offset > 0 then String.make !offset ' ' else ""
+                            >>
           else
             <:str_item< >>$
       

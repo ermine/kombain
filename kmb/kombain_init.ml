@@ -12,14 +12,11 @@ let seq a b input =
 let test_f f input =
   if end_of_file input then
     Failed
-  else (
-    Printf.printf "test_f %d:%d %C\n" input.line input.col input.buf.[input.pos];
+  else
     if f input.buf.[input.pos] then
       Parsed ((), incr_pos input)
     else
       Failed
-  )
-
 
 
 let end_of_line input =
@@ -359,6 +356,4 @@ let _ =
   let grammar_file = Sys.argv.(1) in
   let output_file = Sys.argv.(2) in
   let (declaration, rules), rest = parse_file grammar_file in
-    List.iter (fun ((name, _), rule) ->
-      Printf.printf "Rule %s <- %s\n\n" name (string_of_token rule)) rules;
     Kmb_generator.generate false declaration rules "grammar" output_file

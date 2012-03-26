@@ -84,6 +84,14 @@ let is_simple_token = function
   | Transform _ -> true
   | _ -> false
 
+let string_of_class cs =
+  List.fold_left (fun str -> function
+    | Range (c1, c2) ->
+      sprintf "%s%s-%s" str (string_of_range c1) (string_of_range c2)
+    | Char c ->
+      sprintf "%s%s" str (string_of_range c)
+  ) "[" cs ^ "]"
+
 let rec string_of_token = function
   | Epsilon -> ""
   | Name (name, params) ->
@@ -94,12 +102,7 @@ let rec string_of_token = function
   | Literal cs ->
     sprintf "\"%s\"" (string_of_literal cs)
   | Class cs ->
-    List.fold_left (fun str -> function
-      | Range (c1, c2) ->
-        sprintf "%s%s-%s" str (string_of_range c1) (string_of_range c2)
-      | Char c ->
-        sprintf "%s%s" str (string_of_range c)
-    ) "[" cs ^ "]"
+    string_of_class cs
   | PredicateNOT t ->
     if is_simple_token t then
       "!" ^ string_of_token t

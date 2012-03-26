@@ -1,12 +1,10 @@
-true: debug
-
 <kmb/kmb_generator.ml>: use_camlp4_full, camlp4of
 <kmb/kombain_init.{byte,native}>: use_camlp4_full
 <kmb/kombain.{byte,native}>: use_camlp4_full
 <kmb/kmb_grammar.ml>: use_camlp4
 
 # OASIS_START
-# DO NOT EDIT (digest: 80c56307a008e2db710d9e9ce5390c3b)
+# DO NOT EDIT (digest: 7b751c94bb30c77143c8b9dd2d283d09)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -21,7 +19,7 @@ true: debug
 "_darcs": -traverse
 "_darcs": not_hygienic
 # Library kmb
-"kmb": include
+"kmb/kmb.cmxs": use_kmb
 # Executable bbcode_test
 "bbcode/bbcode_test.byte": use_kmb
 <bbcode/*.ml{,i}>: use_kmb
