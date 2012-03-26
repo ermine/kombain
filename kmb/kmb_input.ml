@@ -2,6 +2,7 @@ type input = {
   buf : string;
   pos : int;
   len : int;
+  filename : string;
   line : int;
   col : int
 }
@@ -34,7 +35,8 @@ let incr_pos input =
     }
 
 let make_input str =
-  { pos = 0; len = String.length str; buf = str; line = 1; col = 0}
+  { pos = 0; len = String.length str; buf = str;
+    filename = "ghost"; line = 1; col = 0}
 
     
 let read_file file =
@@ -51,6 +53,11 @@ let read_file file =
     close_in f;
     String.concat "\n" lines ^ "\n"
 
+let of_file filename =
+  let content = read_file filename in
+    { pos = 0; len = String.length content; buf = content;
+      filename; line = 1; col = 0}
+
 let get_current input =
   Char.code (input.buf.[input.pos])
 
@@ -59,6 +66,9 @@ let string_of_current input =
     Printf.sprintf "%d:%d %C" input.line input.col input.buf.[input.pos]
   else
     "eof"
+
+let string_of_location input =
+  Printf.sprintf "File %S line %d col %d" input.filename input.line input.col
 
 let string_of_cslit clist =
   String.escaped (

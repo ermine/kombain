@@ -2,16 +2,14 @@ open Kmb_input
 open Kmb_lib
 open Kmb_grammar
 
-let _ = Printexc.record_backtrace true
-
 let () =
   let verbose =
     if Array.length Sys.argv > 2 &&
       (Sys.argv.(1) = "-v" || Sys.argv.(1) = "--verbose") then true else false in
   let file = Sys.argv.(if verbose then 2 else 1) in
   let outfile = Sys.argv.(if verbose then 3 else 2) in
-  let content = read_file file in
-  let result = Peg_parser.parse content in
+  let input = Kmb_input.of_file file in
+  let result = Peg_parser.parse input in
     match result with
       | Failed ->
         Printf.printf "failed";

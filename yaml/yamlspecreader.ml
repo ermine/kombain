@@ -8,8 +8,8 @@ let _ = Printexc.record_backtrace true
 
 let () =
   let file = Sys.argv.(1) in
-  let content = read_file file in
-  let result = Yamlspec_parser.parse content in
+  let input = of_file file in
+  let result = Yamlspec_parser.parse input in
     match result with
       | Failed ->
         printf "failed\n"

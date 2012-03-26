@@ -1,14 +1,6 @@
-
 open Kmb_input
 open Kmb_lib
 open Printf
-
-(*
-open Camlp4.PreCast
-module PCaml = Camlp4.Printers.OCaml.Make(Syntax)
-*)  
-
-exception Error of string
 
 type class_t =
   | Char of int
@@ -255,11 +247,11 @@ let make_prefix (f, s) =
     | None -> s
     | Some f -> f s
 
-let unmatched {start = (line, col) ; lexeme} =
-  raise (Error (sprintf "Unmatched %S at line %d col %d" lexeme line col))
+let unmatched {lexeme} =
+  raise (Kmb_lib.Syntax (sprintf "Not found matched pair for %S" lexeme))
 
 let invalid_char {start = (line, col); lexeme} =
-  raise (Error (sprintf "Invalid char %S at line %d col %d" lexeme line col))
+  raise (Kmb_lib.Syntax (sprintf "Invalid char %S" lexeme))
 
 let rec is_productive known = function
   | Name (name, params) -> List.mem name known

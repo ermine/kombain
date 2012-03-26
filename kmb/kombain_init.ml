@@ -2,9 +2,12 @@ open Kmb_input
 open Kmb_lib
 open Kmb_grammar
   
-let _ = Printexc.record_backtrace true
-      
 let test_char c = test_char (Char.code c)
+
+let seq a b input =
+  match a input with
+    | Failed as failed -> failed
+    | Parsed ((), input) -> b input
 
 let test_f f input =
   if end_of_file input then

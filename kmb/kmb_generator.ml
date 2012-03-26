@@ -386,11 +386,10 @@ let generate verbose declaration rules start_rule output_file =
             
 $list:List.rev bindings$
             
-let parse string =
-  let input = Kmb_input.make_input string in
-    $lid:start_rule$ input
+let parse input =
+  $lid:start_rule$ input
     >>;
     
-    printf "\n\nDone!\n"
+  printf "\n\nDone!\n"
 
 

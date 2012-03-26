@@ -15,11 +15,7 @@ declaration  <- '%{' < ( !'%}' .)* > '%}' spacing       { make_declaration }
 definition   <- pname l_leftarrow expression
               / name l_leftarrow expression 
                 { fun (n, e) -> ((n.lexeme, []), e) }
-              / < . > { fun {start = (line, col)} ->
-                          raise (Error (sprintf 
-                            "Invalid rule definition at line %d col %d" 
-                            line col)) 
-                      }
+              / . { fun () -> raise (Syntax "Invalid rule definition") }
 
 expression	<- sequence (l_slash sequence)*       { make_alternates }
 

@@ -45,8 +45,8 @@ let print_data (directives, doc) =
 
 let () =
   let file = Sys.argv.(1) in
-  let content = read_file file in
-  let result = Yaml_parser.parse content in
+  let input = of_file file in
+  let result = Yaml_parser.parse input in
     match result with
       | Failed ->
         printf "failed\n"

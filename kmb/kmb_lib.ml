@@ -1,6 +1,8 @@
 open Kmb_input
 open Printf
   
+exception Syntax of string
+
 type 'a result =
   | Parsed of 'a * input
   | Failed
@@ -9,7 +11,20 @@ let return r input = Parsed (r, input)
 
 let transform r f input =
   match r input  with
-    | Parsed (v, input) -> Parsed (f v, input)
+    | Parsed (v, input) ->
+      let r =
+        try f v
+        with
+          | Syntax msg ->
+            printf "%s\nSyntax error: %s\n"
+              (Kmb_input.string_of_location input) msg;
+            exit 1
+          | exn ->
+            printf "%s\nException: %s\n"
+              (Kmb_input.string_of_location input) (Printexc.to_string exn);
+            exit 2
+      in
+        Parsed (r, input)
     | Failed -> Failed
 
 let predicate_not cond input =

@@ -1,3 +1,4 @@
+exception Syntax of string
 type 'a result = Parsed of 'a * Kmb_input.input | Failed
 val return : 'a -> Kmb_input.input -> 'a result
 val transform : ('a -> 'b result) -> ('b -> 'c) -> 'a -> 'c result
