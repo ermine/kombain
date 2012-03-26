@@ -2,8 +2,8 @@ open Textile_lib
 
 let () =
   let file = Sys.argv.(1) in
-  let content = Kmb_input.read_file file in
-  let result = Textile_parser.parse content in
+  let input = Kmb_input.of_file file in
+  let result = Textile_parser.parse input in
     match result with
       | Kmb_lib.Failed ->
         Printf.printf "failed"
