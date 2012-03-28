@@ -87,9 +87,13 @@ let rec make_rule_expr _loc rules names params verbose = function
       if verbose then
         <:expr< fun input ->
           $if mem_rule name rules then
-            <:expr< Printf.printf "%s %sTrying %s %s...\\n"
+            <:expr< Printf.printf "%s %sTrying %s %s   <- %s\\n"
               (Kmb_input.string_of_current input) (get_offset ())
-              $str:name$ $str:String.escaped (string_of_params params)$ >>
+              $str:name$ $str:String.escaped (string_of_params params)$
+              $str:String.escaped (Kmb_grammar.string_of_token
+                                     (Kmb_grammar.remove_transforms
+                                        (find_rule name rules)))$
+            >>
           else
             <:expr< Printf.printf "%s %sCalling external function %s %s\\n"
               (Kmb_input.string_of_current input) (get_offset ())
@@ -98,13 +102,12 @@ let rec make_rule_expr _loc rules names params verbose = function
       incr offset;
       let r = $e$ input in
         decr offset;
-        match r with
-          | Parsed _ as ok -> Printf.printf "%s %sSuccess %s\\n"
-            (Kmb_input.string_of_current input) (get_offset ()) $str:name$;
-            ok
+        (match r with
+          | Parsed (_, newinp) -> Printf.printf "%s %sSuccess %s\\n"
+            (Kmb_input.string_of_current newinp) (get_offset ()) $str:name$
           | Failed -> Printf.printf "%s %sFailed %s\\n"
-            (Kmb_input.string_of_current input) (get_offset ()) $str:name$;
-            Failed
+            (Kmb_input.string_of_current input) (get_offset ()) $str:name$
+        ); r
             >>
             else e
 
@@ -279,11 +282,26 @@ let make_rule_function _loc verbose (name, params) expr rules =
 
 
 let  try_optimize rules =
-  let concat_class = function
+  let resolve (name, _) =
+    try Some (find_rule name rules) with Not_found -> None in
+  let rec concat_class = function
     | Literal [l1], Literal [l2] -> Some (Class [Char l1; Char l2])
     | Literal [l], Class cs -> Some (Class (Char l :: cs))
     | Class cs, Literal [l] -> Some (Class (cs @ [Char l]))
     | Class cs1, Class cs2 -> Some (Class (cs1 @ cs2))
+    | Name n1, Name n2 -> (
+      match resolve n1, resolve n2 with
+        | Some t1, Some t2 -> concat_class (t1, t2)
+        | _ -> None)
+    | Name n, t2 -> (
+      match resolve n with
+        | Some t -> concat_class (t, t2)
+        | _ -> None)
+    | t, Name n -> (
+      match resolve n with
+        | Some t2 -> concat_class (t, t2)
+        | _ -> None
+    )
     | _ -> None
   in
   let rec aux_optimize = function

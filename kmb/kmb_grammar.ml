@@ -14,7 +14,7 @@ type parameter =
 
 type token =
   | Epsilon
-  | Name of string * parameter list
+  | Name of (string * parameter list)
   | Literal of int list
   | Class of class_t list
   | Transform of lexeme * token
@@ -163,7 +163,20 @@ let rec string_of_token = function
         sprintf "%s = %s" param (string_of_token t)
       else
         sprintf "%s = (%s)" param (string_of_token t)
-  
+
+let rec remove_transforms = function
+  | Transform (_, t) -> remove_transforms t
+  | Opt t -> Opt (remove_transforms t)
+  | Plus t -> Plus (remove_transforms t)
+  | Star t -> Star (remove_transforms t)
+  | PredicateNOT t -> PredicateNOT (remove_transforms t)
+  | PredicateAND t -> PredicateAND (remove_transforms t)
+  | Sequence (s1, s2) -> Sequence (remove_transforms s1, remove_transforms s2)
+  | Alternate (a1, a2) -> Alternate (remove_transforms a1, remove_transforms a2)
+  | Pattern (s, t) -> Pattern (s, remove_transforms t)
+  | Bind (v1, vs, t) -> Bind (v1, vs, remove_transforms t)
+  | t -> t
+      
 let string_of_rule ((name, params), expr) =
   if params = [] then
     sprintf "%s <- %s" name (string_of_token expr)
