@@ -50,15 +50,13 @@ let opt_accu cond input =
     | Failed -> Parsed (None, input)
 
 let get_lexeme cond input =
-  let start = input in
-    match cond input with
-      | Parsed ((), input) ->
-        let end_pos = input.pos in
-        let lexeme = String.sub input.buf start.pos (end_pos - start.pos) in
-          Parsed ({start = (start.line, start.col);
-                   stop = (input.line, input.col);
-                   lexeme}, input)
-      | Failed -> Failed
+  match cond input with
+    | Parsed ((), input') ->
+      let lexeme = String.sub input.buf input.pos (input'.pos - input.pos) in
+        Parsed ({start = (input.line, input.col);
+                 stop = (input'.line, input'.col);
+                 lexeme}, input')
+    | Failed -> Failed
       
 let test_any input =
   if end_of_file input then
@@ -151,24 +149,22 @@ let alt a b input =
 
 
 let rec star cond input =
-  let curr_pos = input.pos in
-    match cond input with
-      | Parsed ((), input) ->
-        if curr_pos = input.pos then
-          Parsed ((), input)
-        else
-          star cond input
-      | Failed -> Parsed ((), input)
+  match cond input with
+    | Parsed ((), input') ->
+      if input.pos = input'.pos then
+        Parsed ((), input')
+      else
+        star cond input'
+    | Failed -> Parsed ((), input)
 
 let star_accu cond input =
-  let curr_pos = input.pos in
   let rec aux_star acc input =
     match cond input with
-      | Parsed (r, input) ->
-        if curr_pos = input.pos then (* TODO need to think *)
-          Parsed (r :: acc, input)
+      | Parsed (r, input') ->
+        if input.pos = input'.pos then
+          Parsed (r :: acc, input')
         else
-          aux_star (r :: acc) input
+          aux_star (r :: acc) input'
       | Failed -> Parsed (List.rev acc, input)
   in
     aux_star [] input

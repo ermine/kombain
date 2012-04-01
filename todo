@@ -1,7 +1,12 @@
 Validation mode for grammars, without compilation
--verbose during generating
 
 дублирующие правила добавлять как альтернативы
 name <- a
 name <- b
 => name <- a / b
+
+оптимизация:
+a <- (!b .) свести в одну функцию
+
+a <- a bc / a q w left-factorize to a (b c / q w)
+
