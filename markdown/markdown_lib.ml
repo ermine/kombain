@@ -2,7 +2,7 @@ open Printf
 open Kmb_input
 
 type target =
-    Src of string * string option
+  | Src of string * string option
   | Ref of inline list * string
   | Nothing
 
@@ -16,20 +16,20 @@ and inline =
   | Code of string
   | Link of inline list * target
   | Image of inline list * target
-  | Html of string
+  | HtmlComment of string
+  | Html of string * (string * string option) list * inline list
 
-type block =
+and block =
   | Para of inline list
   | Plain of inline list
   | Heading of int * inline list
-  | BlockQuote of block list
+  | BlockQuote of string
   | BulletList of block list list
   | OrderedList of block list list
-  | HTMLBlock of string
   | Verbatim of string
   | HorizontalRule
   | Reference of inline list * target
-  | Markdown of string
+  | HtmlBlock of string * (string * string option) list * block list
       
 let rec print_inline = function
   | Text str ->
@@ -58,8 +58,11 @@ let rec print_inline = function
     printf "Image [\n";
     List.iter print_inline inlines;
     printf "]\n"      
-  | Html str ->
-    printf "HTML %S\n" str
+  | HtmlComment s ->
+    printf "HTML Comment %S\n" s
+  | Html (name, attrs, inlines) ->
+    printf "Html in inline\n"
+(*    List.iter print_inline inlines *)
 
 let rec print_token = function
   | Para inlines ->
@@ -74,10 +77,8 @@ let rec print_token = function
     printf "Heading %d [\n" level;
     List.iter print_inline inlines;
     printf "]\n"    
-  | BlockQuote blocks ->
-    printf "Blockquote [\n";
-    List.iter print_token blocks;
-    printf "]\n"
+  | BlockQuote str ->
+    printf "Blockquote\n%s\n" str
   | BulletList blocks ->
     printf "BulletList [\n";
     List.iter (fun block ->
@@ -94,8 +95,6 @@ let rec print_token = function
       printf "]\n"
     ) blocks;
     printf "]\n"    
-  | HTMLBlock string ->
-    printf "HtmlBlock %S\n" string
   | Verbatim string ->
     printf "Verbatim %S\n" string
   | HorizontalRule ->
@@ -104,10 +103,6 @@ let rec print_token = function
     printf "Reference [\n";
     List.iter print_inline inlines;
     printf "]\n"
-  | Markdown string ->
-    printf "Markdown %S\n" string
-      
-
 
 let add_verbatim state _ _ lexeme =
   match state with
@@ -120,30 +115,13 @@ let make_entity state _ _ lexeme =
 let make_text state _ _ lexeme =
   Text lexeme :: state
 
-(*
-let blockTags =
-  List.fold_left (fun acc x -> x :: String.uppercase x :: acc) [] [
-    "address"; "blockquote"; "center"; "dir"; "div"; "dl"; "fieldset"; "form";
-    "h1"; "h2"; "h3"; "h4"; "h5"; "h6"; "hr"; "isindex"; "menu"; "noframes";
-    "noscript"; "ol"; "p"; "pre"; "table"; "ul"; "dd"; "dt"; "frameset"; "li";
-    "tbody"; "td"; "tfoot"; "th"; "thead"; "tr"; "script"
-  ]
-    
-let kmb_htmlBlockTag input =
-  let rec aux_test = function
-    | [] -> Failed
-    | x :: xs ->
-      match match_pattern x input with
-        | Parsed _ as ok -> ok
-        | Failed -> aux_test xs
-  in
-    aux_test blockTags
-*)
-
 open Kmb_lib
 
-let make_blackquote ls =
-  let txt = String.concat "" 
-    (List.concat (List.map (fun (l1, l2) -> l1 @ 
-      (List.map (fun {lexeme} -> lexeme) l2)) ls)) in
-    BlockQuote [Markdown txt] 
+let rec repeat n symbol input =
+  if n = 0 then
+    Parsed ((), input)
+  else
+    match symbol input with
+      | Parsed (_, input) -> repeat (pred n) symbol input
+      | Failed -> Failed
+  

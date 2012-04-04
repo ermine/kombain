@@ -34,9 +34,9 @@ let incr_pos input =
       col = input.col + 1
     }
 
-let make_input str =
+let make_input ?(filename="ghost") str =
   { pos = 0; len = String.length str; buf = str;
-    filename = "ghost"; line = 1; col = 0}
+    filename; line = 1; col = 0}
 
     
 let read_file file =

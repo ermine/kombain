@@ -5,76 +5,88 @@ open Markdown_lib
 open Kmb_input
 %}
 
-document        <- ((blankLine* block)* blankLine*) endOfFile
+document            <- ((blankLine* block(0))* blankLine*) endOfFile
 
+block(n)            <- blockQuote(n) / verbatim(n) / reference(n) 
+                     / list(n) / htmlblock(n) / horizontalRule(n) 
+                     / heading(n) / para(n) / plain(n)
 
-block           <- blockQuote / verbatim / reference / htmlBlock 
-                 / heading / list / horizontalRule / para / plain
+blockQuoteLine(n)   <- indent(n) nonIndentSpace '>' ' '? anyLine
 
-blockQuoteLine  <- nonIndentSpace '>' ' '? < anyLine > { fun {lexeme} -> lexeme }
+blockQuote(n)       <- (blockQuoteLine(n)+ 
+                       (indent(n) !blankLine anyLine )* blankLine*)+
+                       { fun ls -> 
+                           let str = 
+                             String.concat "" (List.map (fun (s1, s2) -> 
+                               String.concat "" (s1 @ s2)) ls) in 
+                                 BlockQuote str }
 
-blockQuote      <- (blockQuoteLine+ (!blankLine < anyLine > )* blankLine*)+
-                   { make_blackquote }
+verbatim(n)         <- (indent(succ(n)) !blankLine anyLine)+
+                       ((indent(succ(n))? blankLine {fun () -> "\n" } )+ 
+                       (indent(succ(n)) !blankLine anyLine)+
+                        { fun (s1, s2) -> String.concat "" (s1 @ s2) })* 
+                       blankLine*
+                       { fun (i1, i2) ->
+                         let v = String.concat "" (i1 @ i2) in
+                           Verbatim v }
 
-verbatim        <- (!blankLine indentedLine)+
-                   ((indent? blankLine {fun () -> "\n" } )+ 
-                   (!blankLine indentedLine)+
-                   { fun (s1, s2) -> List.concat [s1;s2] })* blankLine*
-                   { fun (i1, i2) ->
-                       Verbatim (String.concat "" 
-                                ((List.concat [i1; List.concat i2])))}
+anyLine             <- < (!newLine .)* newLine? > { fun s -> s.lexeme }
 
-indentedLine    <- indent < anyLine > { fun {lexeme} -> lexeme }
-anyLine         <- (!newLine .)* newLine?
+reference(n)        <- indent(n) 
+                       nonIndentSpace label(n) ':' spnl 
+                       < (!spaceChar !newLine .)+ >
+                       spnl title? blankLine*
+                       { fun (l, ({lexeme}, t)) -> 
+                           Reference (l, Src (lexeme, t)) }
 
-reference       <- nonIndentSpace label ':' spnl < (!spaceChar !newLine .)+ >
-                   spnl title? blankLine*
-                   { fun (l, ({lexeme}, t)) -> Reference (l, Src (lexeme, t)) }
-
-horizontalRule  <- nonIndentSpace (('*' sp '*' sp '*' (sp '*')*)
+horizontalRule(n)   <- indent(n) nonIndentSpace (('*' sp '*' sp '*' (sp '*')*)
                                  / ('-' sp '-' sp '-' (sp '-')*)
                                  / ('_' sp '_' sp '_' (sp '_')*))
-                   newLine blankLine+ # the + causes problems at the end of file
-                   { fun _ -> HorizontalRule }
+                       newLine blankLine+
+                       { fun _ -> HorizontalRule }
 
-para            <- inline+ newLine blankLine+ 
-                   { fun inlines -> Para inlines }
-plain           <- inline+ blankLine?         { fun inlines -> Plain inlines }
+para(n)             <- indent(n) inline(n)+ newLine blankLine+
+                       { fun inlines -> Para inlines }
+plain(n)            <- indent(n) inline(n)+ blankLine?
+                       { fun inlines -> Plain inlines }
 
-blankLine       <- sp newLine
+inline(n)           <- strong(n) / emph(n) / code / endLine2(n)
+                     / spaces / link(n) / image(n)
+                     / autoLink / rawHTML(n) / str / entity / special 
 
-inline          <- strong / emph / code / endLine2 / spaces / link / image 
-                 / autoLink / rawHTML / str / entity / special 
+spaces              <- spaceChar+ { fun () -> Space }
 
-spaces          <- spaceChar+ { fun () -> Space }
+strong(n)           <- (strongStar(n) / strongUl(n))
+                       { fun inlines -> Strong inlines }
 
-strong           <- (strongStar / strongUl)     { fun inlines -> Strong inlines }
-
-strongStar       <- twoStar !' ' !newLine (!(spnl twoStar) inline)+ twoStar
-strongUl         <- twoUl !' '  !newLine (!(spnl twoUl) inline)+ twoUl !alphaNum
+strongStar(n)       <- twoStar !' ' !newLine (!(spnl twoStar) inline(n))+ twoStar
+strongUl(n)         <- twoUl !' ' !newLine (!(spnl twoUl) inline(n))+ twoUl 
+                       !alphaNum
   
-emph            <- (emphStar / emphUl)          { fun inlines -> Emph inlines }
-emphStar        <- oneStar !' ' !newLine 
-                          (strong / !(spnl oneStar) inline)+ oneStar
-emphUl          <- oneUl !' ' !newLine (strong / !(spnl oneUl) inline)+ oneUl
-                    !alphaNum 
+emph(n)             <- (emphStar(n) / emphUl(n))
+                       { fun inlines -> Emph inlines }
+emphStar(n)         <- oneStar !' ' !newLine 
+                          (strong(n) / !(spnl oneStar) inline(n))+ oneStar
+emphUl(n)           <- oneUl !' ' !newLine 
+                       (strong(n) / !(spnl oneUl) inline(n))+ oneUl
+                       !alphaNum 
 
-code            <- ticks@('`'+) < ((!'`' .)+ / !ticks '`'+)+ > ticks 
-                   { fun {lexeme} -> Code lexeme }
+code                <- ticks@('`'+) < ((!'`' .)+ / !ticks '`'+)+ > ticks 
+                       { fun {lexeme} -> Code lexeme }
 
-str             <- < normalChar+ >  { fun {lexeme} -> Text lexeme }
+str                 <- < normalChar+ >  { fun {lexeme} -> Text lexeme }
 
-special         <- < specialChar >          { fun {lexeme} -> Text lexeme }
+special             <- < specialChar >          { fun {lexeme} -> Text lexeme }
 
-link            <- explicitLink / referenceLink
-image           <- '!' link  { fun (Link (x, y)) -> Image (x, y) }
-autoLink        <- autoLinkURL / autoLinkEmail
+link(n)             <- explicitLink(n) / referenceLink(n)
+image(n)            <- '!' link(n)  { fun (Link (x, y)) -> Image (x, y) }
+autoLink            <- autoLinkURL / autoLinkEmail
 
-referenceLink   <- label < spnl > label 
-                   { fun (l1, ({lexeme}, l2)) -> Link (l2, Ref (l2, lexeme)) }
-                 / label  { fun l -> Link (l, Nothing) }
+referenceLink(n)    <- label(n) < spnl > label(n) 
+                       { fun (l1,({lexeme}, l2)) -> Link (l2, Ref (l2, lexeme)) }
+                     / label(n)  { fun l -> Link (l, Nothing) }
 
-label           <- '[' (!']' inline)* ']'
+label(n)        <- '[' (!']' inline(n))* ']'
 title           <- ('"' < (!('\"' sp (")" / newLine)) !newLine .)* > '"'
                  / '\'' < (!('\'' sp (")" / newLine)) !newLine .)* > '\'')
                  { fun {lexeme} -> lexeme }
@@ -85,110 +97,135 @@ source'         <- ((![()> \n\t] .)+ / "(" source' ")" / "<" source' ">")*
 
 sourceAndTitle  <- '(' sp source spnl title? sp ')'
 
-explicitLink    <- label spnl sourceAndTitle
+explicitLink(n) <- label(n) spnl sourceAndTitle
                   { fun (l, (src, title)) -> Link (l, Src (src, title)) }
 
 autoLinkURL     <- '<' < alpha+ "://" (!newLine !'>' .)+ > '>' 
                    { fun {lexeme} -> Link ([Text lexeme], Src (lexeme, None)) }
 
-autoLinkEmail   <- '<' < alpha+ "@" (!newLine !'>' .)+ > '>'
-                { fun {lexeme} -> 
-                    Link ([Text lexeme], Src (("mailto:" ^ lexeme), None)) }
+autoLinkEmail       <- '<' < alpha+ "@" (!newLine !'>' .)+ > '>'
+                       { fun {lexeme} -> 
+                           Link ([Text lexeme], Src (("mailto:" ^ lexeme), None))
+                       }
 
-rawHTML         <- (< htmlComment / htmlTag >)  { fun {lexeme} -> Html lexeme }
+htmlBlockTagName    <- "address" / "blockquote" / "center" / "dir" / "div" 
+                     / "dl" / "fieldset" / "form" / "h1" / "h2" / "h3" / "h4" 
+                     / "h5" / "h6" / "hr" / "isindex" / "menu" / "noframes"
+                     / "noscript" / "ol" / "p" / "pre" / "table" / "ul"
+                     / "dd" / "dt" / "frameset" / "li" / "tbody" / "td" 
+                     /  "tfoot" / "th" / "thead" / "tr" / "script"
 
-htmlComment     <- "<!--" (!"-->" .)* "-->"
-htmlTag         <- "<" spnl "/"? alphaNum+ spnl htmlAttribute* "/"? ">"
-htmlAttribute   <- alphaNum+ spnl ("=" spnl (quoted / (!spaces .)+))? spnl
-quoted          <- ["] (!'\"' .)* ["] / ['] (!'\'' .)* [']
+htmlBlockTag        <- "<" spnl < htmlBlockTagName > spnl htmlAttribute* ">"
+                       { fun (name, attrs) -> (name.lexeme, attrs) }
+
+htmlblock(n)        <- indent(n) nonIndentSpace htmlBlock'(n) blankLine+
+htmlInternal(n)     <- " "* htmlBlock'(n) blankLine? { fun x -> x }
+htmlBlock'(n)       <- htmlBlockTag
+                         ( blankLine ( blankLine+ (!(" "* htmlEndTag) block(n))+
+                                     / htmlInternal(n)+)
+                         / (!(" "* htmlEndTag) inline(n))+ 
+                           { fun i -> [Plain i] })
+                       " "* htmlEndTag
+                       { fun ((name1, attrs), (child, name2)) ->
+                           if name1=name2 then HtmlBlock (name1, attrs, child)
+                           else failwith "html end tag does not match"
+                       }
+
+rawHTML(n)          <- htmlComment
+                     / htmlTag (!htmlEndTag inline(n))* htmlEndTag
+                       { fun ((name1, attrs), (childs, name2)) ->
+                         if name1 = name2 then Html (name1, attrs, childs)
+                         else failwith "error"
+                       }
+                     / htmlTag # TODO: also <aaa/>
+                       { fun (name, attrs) -> failwith ("single tag " ^ name) }
+                       #  Html (name, attrs, []) }
+                     / htmlEndTag 
+                       { fun name -> failwith ("Unexpected close tag " ^ name) }
+
+htmlComment         <- "<!--" < (!"-->" .)* > "-->" 
+                       { fun s -> HtmlComment s.lexeme }
+
+htmlTag             <- "<" spnl < alphaNum+ > spnl htmlAttribute* ">"
+                       { fun (name, attrs) -> (name.lexeme, attrs) }
+
+htmlEndTag          <- "<" spnl "/" < alpha+ > spnl ">" 
+                       { fun name -> name.lexeme }
+
+htmlAttribute       <- < alphaNum+ > spnl ("=" spnl 
+                            ( quoted 
+                            / < (![ >] .)+ > { fun s -> s.lexeme }))? spnl
+                       { fun (k,v) -> (k.lexeme, v) }
+
+quoted              <- (["] < (!'\"' .)* > ["] 
+                     / ['] < (!'\'' .)* > [']) { fun {lexeme} -> lexeme }
 
 
-htmlBlockTag    <- "address" / "blockquote" / "center" / "dir" / "div" 
-                 / "dl" / "fieldset" / "form" / "h1" / "h2" / "h3" / "h4" 
-                 / "h5" / "h6" / "hr" / "isindex" / "menu" / "noframes" 
-                 / "noscript" / "ol" / "p" / "pre" / "table" / "ul" / "dd" 
-                 / "dt" / "frameset" / "li" / "tbody" / "td" / "tfoot" / "th" 
-                 / "thead" / "tr" / "script"
+heading(n)          <-  (atxHeading(n) / setextHeading(n)) blankLine*
 
-htmlBlockAny    <- '<' spnl '/' htmlBlockTag '>'
+atxHeading(n)       <- indent(n)
+                       < "######" / "#####" / "####" / "###" / "##" / "#" >
+                       (!endLine !'#'  inline(n))+ '#'* newLine
+                       { fun ({lexeme}, inlines) -> 
+                           Heading (String.length lexeme, inlines) }
 
-htmlBlock       <- < nonIndentSpace (htmlComment / htmlBlockAny) >
-                   { fun {lexeme} -> HTMLBlock lexeme }
-
-
-heading         <-  (atxHeading / setextHeading) blankLine*
-
-atxHeading     <- < "######" / "#####" / "####" / "###" / "##" / "#" >
-                   (!endLine !'#'  inline)+ '#'* newLine
-                   { fun ({lexeme}, inlines) -> 
-                       Heading (String.length lexeme, inlines) }
-setextHeading  <- (!endLine inline)+ newLine ("==="  "="* { fun () -> 1 } 
+setextHeading(n)    <- indent(n) (!endLine inline(n))+ newLine ("==="  "="* 
+                                             { fun () -> 1 } 
                                              / "---" "-"* { fun () -> 2 }
                                              ) newLine
-                  { fun (inlines, level) -> Heading (level, inlines) }
+                       { fun (inlines, level) -> Heading (level, inlines) }
 
-list           <- bulletList / orderedList
+list(n)             <- bulletList(n) / orderedList(n)
 
-bullet         <- nonIndentSpace [+*\-] spaceChar+
-bulletList     <- bulletListTight / bulletListLoose
-bulletListTight <- (bulletListItem { fun s -> [Markdown s] })+
-                   blankLine* !bulletListLoose 
-                   { fun s -> BulletList s}
-bulletListLoose <- (bulletListItem blankLine*
-                     { fun s -> [Markdown (s ^ "\n\n")] })+
-                    { fun s -> BulletList s }
-bulletListItem  <- !horizontalRule bullet listBlock listContinuationBlock*
-                   { fun (s1, s2) -> String.concat "" (s1 :: s2) }
+bullet              <- nonIndentSpace [+*\-] spaceChar+
+bulletList(n)       <- bulletListItem(n)+ { fun l -> BulletList l }
+enumerator          <- nonIndentSpace digit+ '.' spaceChar+
+orderedList(n)      <- orderedListItem(n)+ { fun l -> OrderedList l }
 
-listBlock       <- < anyLine > (!(indent? (bulletListItem / orderedListItem))
-                   !blankLine !(indent (bullet / enumerator))
-                   optionallyIndentedLine)*
-                   { fun (l1, ls) ->
-                       String.concat "" (l1.lexeme ::
-                                        List.map (fun l -> l.lexeme) ls) }
+bulletListItem(n)   <- indent(n) !horizontalRule(n)
+                       bullet listBlock(n) listContinuationBlock(succ(n))*
+                       { fun (s1, s2) -> s1 :: List.concat s2 }
 
-optionallyIndentedLine <- indent < anyLine >
+orderedListItem(n)  <- indent(n) 
+                       enumerator listBlock(n) listContinuationBlock(succ(n))*
+                       { fun (s1, s2) -> s1 :: List.concat s2 }
 
-listContinuationBlock <- (< blankLine+ > {fun {lexeme} -> lexeme } 
-                          / { fun () -> "\n" })
-                         (indent listBlock)+
-                         { fun (bl, lbs) -> String.concat "" (bl :: lbs) }
+listBlock(n)        <- (!(newLine indent(succ(n)) (bullet / enumerator)) 
+                       inline(succ(n)))+ blankLine
+                       { fun i -> Plain i }
 
-enumerator      <- nonIndentSpace digit+ '.' spaceChar+
-orderedList     <- orderedListTight / orderedListLoose
-orderedListTight <- (orderedListItem { fun s -> [Markdown s] })+ blankLine*
-                    !orderedListLoose { fun s -> OrderedList s }
-orderedListLoose <- ((orderedListItem blankLine*) 
-                    { fun s -> [Markdown (s ^ "\n\n")] } )+ 
-                    { fun s -> OrderedList s }
-orderedListItem  <- enumerator listBlock listContinuationBlock*
-                    { fun (l1, ls) -> String.concat "" (l1 :: ls) }
+listContinuationBlock(n) <- blankLine* block(n)+
 
 # Lexical syntax
 
-endOfFile       <- !.
-newLine         <- '\n' / "\r\n" / '\r'
-space           <- [ \t]
-sp              <- space*
-spnl            <- sp (newLine sp)?
-indent          <- '\t' / "    "
-nonIndentSpace  <- ("   " / "  " / " ")?
-twoStar         <- '**' !'**'
-twoUl           <- '__' !'__'
-oneStar         <- '*' !'*'
-oneUl           <- '_' !'_'
+blankLine           <- sp newLine
+endOfFile           <- !.
+newLine             <- '\r'? '\n'
+space               <- [ \t]
+sp                  <- space*
+spnl                <- sp (newLine sp)?
 
-alpha           <- [a-zA-Z]
-alphaNum        <- [a-zA-Z0-9]
-escapedChar     <- '\\' .
-specialChar     <- [*_`&\[\]<!\\]
-normalChar      <- escapedChar / !(specialChar / ' ' / newLine) .
-endLine         <- ' '? newLine !blankLine !endOfFile { fun () -> Space }
-endLine2        <- ' '? newLine !indent !blankLine !endOfFile { fun () -> Space }
+indent1             <- '\t' / "    "
+indent(n)           <- repeat(n, indent1)
 
-entity          <- '&'  < '#' ('x' / 'X') hexDigit+ 
-                          / '#' digit+ 
-                          / alphaNum+ > ';' { fun {lexeme} -> Entity lexeme }
-digit           <- [0-9]
-hexDigit        <- [0-9a-fA-F]
+nonIndentSpace      <- ("   " / "  " / " ")?
+twoStar             <- '**' !'**'
+twoUl               <- '__' !'__'
+oneStar             <- '*' !'*'
+oneUl               <- '_' !'_'
+
+alpha               <- [a-zA-Z]
+alphaNum            <- alpha / [0-9]
+escapedChar         <- '\\' .
+specialChar         <- [*_`&\[\]<!\\]
+normalChar          <- escapedChar / !(specialChar / ' ' / newLine) .
+endLine             <- ' '? newLine !blankLine !endOfFile { fun () -> Space }
+endLine2(n)         <- ' '? newLine indent(n) !indent(n) !blankLine !endOfFile 
+                       { fun () -> Space }
+
+entity              <- '&'  < '#' ('x' / 'X') hexDigit+ 
+                            / '#' digit+ 
+                            / alphaNum+ > ';' { fun {lexeme} -> Entity lexeme }
+digit               <- [0-9]
+hexDigit            <- [0-9a-fA-F]
 spaceChar       <- ' '

@@ -9,6 +9,13 @@ let parse s =
       | Kmb_lib.Failed -> failwith "Failed to parse"
       | Kmb_lib.Parsed (ast, rest) -> ast
 
+let make_attrs attrs =
+  List.map (fun (aname, avalue) ->
+    XML.string_attrib aname (match avalue with
+      | Some v -> v
+      | None -> ""))
+    attrs
+
 let rec render els =
   let r =
     List.fold_right (fun el acc ->
@@ -57,7 +64,10 @@ let rec link_inline refs (els:inline list) =
               @ acc
       )
       | Code s -> print_endline "code in link"; acc
-      | Html s -> print_endline ("html in link " ^ s); acc
+      | HtmlComment s -> tot (XML.comment s) :: acc
+      | Html (name, attrs, xs) ->
+        tot (XML.node ~a:(make_attrs attrs) name
+               (toeltl (link_inline refs xs))) :: acc
       | Link (l, Nothing) -> link_inline refs (Text "[" :: l @ [Text "]"]) @ acc
       | Link (l, _) -> print_endline ("link in link " ^ render l) ; acc
   ) els []
@@ -79,7 +89,10 @@ let rec html_of_inline refs els =
       | Code s -> code [pcdata s] :: acc
       | Emph xs -> em ~a:[] (html_of_inline refs xs) :: acc
       | Strong xs -> strong ~a:[] (html_of_inline refs xs) :: acc
-      | Html s -> print_endline ("html in inline " ^ s); acc
+      | HtmlComment s -> tot (XML.comment s) :: acc
+      | Html (name, attrs, xs) ->
+        tot (XML.node ~a:(make_attrs attrs) name
+               (toeltl (html_of_inline refs xs))) :: acc
       | Image (l, Src (u,t)) ->
         make_image (l, (u,t)) :: acc
       | Image (l, Nothing) -> (
@@ -116,33 +129,54 @@ let rec html_of_inline refs els =
       )
   ) els []
 
+let strip els =
+  let rec drop_while = function
+    | [] -> []
+    | Space :: xs -> drop_while xs
+    | xs -> xs
+  in
+    drop_while (List.rev (drop_while (List.rev els)))
+
 let rec html_of_block refs els =
   List.fold_right (fun el acc ->
     match el with
-      | Para xs -> p (html_of_inline refs xs) :: acc
-      | Plain xs -> p (html_of_inline refs xs) :: acc
+      | HtmlBlock (name, attrs, els) -> (
+        if name = "td" then
+          match els with
+            | [Plain inlines] ->
+              tot (XML.node ~a:(make_attrs attrs) "td"
+                     (toeltl (html_of_inline refs (strip inlines)))) :: acc
+            | _ ->
+              tot (XML.node ~a:(make_attrs attrs) "td"
+                     (toeltl (html_of_block refs els))) :: acc
+        else 
+          tot (XML.node ~a:(make_attrs attrs) name
+                 (toeltl (html_of_block refs els))) :: acc
+      )
+      | Plain xs
+      | Para xs ->
+        p (html_of_inline refs (strip xs)) :: acc
+                
       | Heading (lev, xs) -> (
-        match lev with
-          | 1 -> h1 (html_of_inline refs xs) :: acc
-          | 2 -> h2 (html_of_inline refs xs) :: acc
-          | 3 -> h3 (html_of_inline refs xs) :: acc
-          | 4 -> h4 (html_of_inline refs xs) :: acc
-          | 5 -> h5 (html_of_inline refs xs) :: acc
-          | 6 -> h6 (html_of_inline refs xs) :: acc
-          | _ -> assert false
+        let xs = strip xs in
+          match lev with
+            | 1 -> h1 (html_of_inline refs xs) :: acc
+            | 2 -> h2 (html_of_inline refs xs) :: acc
+            | 3 -> h3 (html_of_inline refs xs) :: acc
+            | 4 -> h4 (html_of_inline refs xs) :: acc
+            | 5 -> h5 (html_of_inline refs xs) :: acc
+            | 6 -> h6 (html_of_inline refs xs) :: acc
+            | _ -> assert false
       )
       | HorizontalRule -> hr () :: acc
-      | BlockQuote xs -> blockquote (html_of_block refs xs) :: acc
-      | Verbatim s -> pre [code  [pcdata s]] :: acc
-      | BulletList  items ->
+      | BlockQuote str -> blockquote [p [pcdata str]] :: acc
+      | Verbatim s ->
+        pre [code  [pcdata s]] :: acc
+      | BulletList items ->
         ul (List.map (fun i -> li  (html_of_block refs i)) items) :: acc
       | OrderedList items ->
         ol (List.map (fun i -> li  (html_of_block refs i)) items) :: acc
-      | Markdown m ->
-        let ast = parse m in
-          html_of_block refs ast @ acc
       | Reference _ -> acc
-      | HTMLBlock s -> print_endline "htmlblock in block"; acc
   ) els []
     
 let make_html5 ast =
@@ -157,7 +191,7 @@ let make_html5 ast =
 let () =
   let mdfile = Sys.argv.(1) in
   let content = Kmb_input.read_file mdfile in
-  let ast = parse content in
+  let ast = parse (Kmb_input.make_input ~filename:mdfile content) in
   let outfile = Sys.argv.(2) in
   let oc = open_out outfile in
   let output str = output oc str 0 (String.length str) in
