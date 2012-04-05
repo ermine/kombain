@@ -181,7 +181,10 @@ let rec html_of_block refs els =
         let newrefs = collect_refs ast in
           blockquote (html_of_block (newrefs @ refs) ast) :: acc
       | CodeHighlight (name, lines) ->
-        pre [code [pcdata lines]] :: acc
+        pre [code ~a:(match name with
+          | Some name -> [a_class [name]]
+          | None -> [])
+                [pcdata lines]] :: acc
       | Verbatim s ->
         pre [code  [pcdata s]] :: acc
       | BulletList items ->
@@ -198,9 +201,24 @@ let rec html_of_block refs els =
       | Reference _ -> acc
   ) els []
     
-let make_html5 ast =
+let get_topic filename ast =
+  try
+    let t = List.find (function
+      | Heading (1, _) -> true
+      | _ -> false
+    ) ast in
+      match t with
+        | Heading (_, inlines) -> render (strip inlines)
+        | _ -> Filename.basename filename
+  with Not_found -> Filename.basename filename
+
+let make_html5 filename ast =
   let refs = collect_refs ast in
-    html (head (title (pcdata "abc")) [])
+  let topic = get_topic filename ast in
+    html (head (title (pcdata topic)) [
+      script ~a:[a_src "http://yandex.st/highlightjs/6.1/highlight.min.js"]
+        (pcdata "")
+    ])
       (body (html_of_block refs ast))
 
 let () =
@@ -210,6 +228,6 @@ let () =
   let outfile = Sys.argv.(2) in
   let oc = open_out outfile in
   let output str = output oc str 0 (String.length str) in
-    print ~output  (make_html5 ast);
+    print ~output  (make_html5 mdfile ast);
     close_out oc
   
