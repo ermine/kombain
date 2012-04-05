@@ -7,9 +7,9 @@ open Kmb_input
 
 document            <- ((blankLine* block(0))* blankLine*) endOfFile
 
-block(n)            <- blockQuote(n) / verbatim(n) / reference(n) 
-                     / list(n) / htmlblock(n) / horizontalRule(n) 
-                     / heading(n) / para(n) / plain(n)
+block(n)            <- blockQuote(n) / codehighlight(n) / verbatim(n) 
+                     / reference(n) / list(n) / htmlblock(n) 
+                     / horizontalRule(n) / heading(n) / para(n) / plain(n)
 
 blockQuoteLine(n)   <- indent(n) nonIndentSpace '>' ' '? anyLine
 
@@ -20,6 +20,16 @@ blockQuote(n)       <- (blockQuoteLine(n)+
                              String.concat "" (List.map (fun (s1, s2) -> 
                                String.concat "" (s1 @ s2)) ls) in 
                                  BlockQuote str }
+
+# Github extension
+codehighlight(n)    <- "```" < alphaNum+ >? blankLine
+                       (!"```" anyLine)+
+                       "```" blankLine*
+                       { fun (name, lines) -> 
+                           CodeHighlight ((match name with 
+                               | None -> None 
+                               | Some v -> Some v.lexeme), 
+                             String.concat "" lines) }
 
 verbatim(n)         <- (indent(succ(n)) !blankLine anyLine)+
                        ((indent(succ(n))? blankLine {fun () -> "\n" } )+ 
@@ -130,6 +140,8 @@ htmlBlock'(n)       <- htmlBlockTag
                            if name1=name2 then HtmlBlock (name1, attrs, child)
                            else failwith "html end tag does not match"
                        }
+                     / "<" spnl <alpha+> spnl htmlAttribute* spnl "/"? ">"
+                       { fun (n, attrs) -> HtmlBlock (n.lexeme, attrs, []) }
 
 rawHTML(n)          <- htmlComment
                      / htmlTag (!htmlEndTag inline(n))* htmlEndTag
@@ -137,9 +149,8 @@ rawHTML(n)          <- htmlComment
                          if name1 = name2 then Html (name1, attrs, childs)
                          else failwith "error"
                        }
-                     / htmlTag # TODO: also <aaa/>
-                       { fun (name, attrs) -> failwith ("single tag " ^ name) }
-                       #  Html (name, attrs, []) }
+                     / "<" spnl < alpha+ > spnl htmlAttribute* "/"? ">"
+                       { fun (n, attrs) -> Html (n.lexeme, attrs, []) }
                      / htmlEndTag 
                        { fun name -> failwith ("Unexpected close tag " ^ name) }
 
@@ -215,12 +226,12 @@ oneStar             <- '*' !'*'
 oneUl               <- '_' !'_'
 
 alpha               <- [a-zA-Z]
-alphaNum            <- alpha / [0-9]
+alphaNum            <- alpha / digit
 escapedChar         <- '\\' .
 specialChar         <- [*_`&\[\]<!\\]
 normalChar          <- escapedChar / !(specialChar / ' ' / newLine) .
 endLine             <- ' '? newLine !blankLine !endOfFile { fun () -> Space }
-endLine2(n)         <- ' '? newLine indent(n) !indent(n) !blankLine !endOfFile 
+endLine2(n)         <- ' '? newLine indent(n) !indent(1) !blankLine !endOfFile 
                        { fun () -> Space }
 
 entity              <- '&'  < '#' ('x' / 'X') hexDigit+ 

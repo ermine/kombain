@@ -26,6 +26,7 @@ and block =
   | BlockQuote of string
   | BulletList of block list list
   | OrderedList of block list list
+  | CodeHighlight of string option * string
   | Verbatim of string
   | HorizontalRule
   | Reference of inline list * target
@@ -94,7 +95,11 @@ let rec print_token = function
       List.iter print_token block;
       printf "]\n"
     ) blocks;
-    printf "]\n"    
+    printf "]\n"
+  | CodeHighlight (name, lines) ->
+    printf "CodeHighlight %s [%s]\n"
+      (match name with | None -> "(none)" | Some v -> v)
+      lines
   | Verbatim string ->
     printf "Verbatim %S\n" string
   | HorizontalRule ->
@@ -103,11 +108,6 @@ let rec print_token = function
     printf "Reference [\n";
     List.iter print_inline inlines;
     printf "]\n"
-
-let add_verbatim state _ _ lexeme =
-  match state with
-    | Verbatim lines :: xs -> Verbatim (lines ^ lexeme) :: xs
-    | state -> Verbatim lexeme :: state
 
 let make_entity state _ _ lexeme =
   Entity lexeme :: state
