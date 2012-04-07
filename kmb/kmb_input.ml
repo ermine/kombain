@@ -75,3 +75,8 @@ let string_of_cslit clist =
     String.concat "" (List.map (fun c ->
       String.make 1 (if c < 255 then Char.chr c else '*')) clist))
       
+let get_remaining input =
+  if input.pos < input.len then
+    String.sub input.buf input.pos (input.len - input.pos)
+  else
+    ""

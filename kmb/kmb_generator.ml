@@ -1,6 +1,7 @@
 open Kmb_grammar
 open Camlp4.PreCast;;
 open Printf
+open Kmb_util
 
 module Caml =
   Camlp4.Printers.OCaml.Make
@@ -10,13 +11,6 @@ module Caml =
 
 open Syntax
     
-let find_rule name (rules:((string*string list)*token) list) =
-  let (_, token) = List.find (fun ((n, _), _) -> n = name) rules in
-    token
-    
-let mem_rule name rules =
-  List.exists (fun ((n, _), _) -> n = name) rules
-  
 let rec should_export (rules:((string*string list)*token) list) names = function
   | Epsilon -> false
   | Name (name, params) ->
@@ -280,61 +274,6 @@ let make_rule_function _loc verbose (name, params) expr rules =
   in
     <:str_item< let $lid:name$ = $e$ >>
 
-
-let  try_optimize rules =
-  let resolve (name, _) =
-    try Some (find_rule name rules) with Not_found -> None in
-  let rec concat_class = function
-    | Literal [l1], Literal [l2] -> Some (Class [Char l1; Char l2])
-    | Literal [l], Class cs -> Some (Class (Char l :: cs))
-    | Class cs, Literal [l] -> Some (Class (cs @ [Char l]))
-    | Class cs1, Class cs2 -> Some (Class (cs1 @ cs2))
-    | Name n1, Name n2 -> (
-      match resolve n1, resolve n2 with
-        | Some t1, Some t2 -> concat_class (t1, t2)
-        | _ -> None)
-    | Name n, t2 -> (
-      match resolve n with
-        | Some t -> concat_class (t, t2)
-        | _ -> None)
-    | t, Name n -> (
-      match resolve n with
-        | Some t2 -> concat_class (t, t2)
-        | _ -> None
-    )
-    | _ -> None
-  in
-  let rec aux_optimize = function
-    | Alternate (a1, Alternate (a2, tail)) -> (
-      match concat_class (a1, a2) with
-        | None ->
-          Alternate (aux_optimize a1, aux_optimize (Alternate (a2, tail)))
-        | Some r ->
-          aux_optimize (Alternate (r, tail))
-    )
-    | Alternate (a1, a2) -> (
-      match concat_class (a1, a2) with
-        | None -> Alternate (aux_optimize a1, aux_optimize a2)
-        | Some r -> r
-    )
-    | Sequence (Literal l1, Literal l2) ->
-      Literal (l1 @  l2)
-    | Sequence (Literal l1, Sequence (Literal l2, tail)) ->
-      aux_optimize (Sequence (Literal (l1 @ l2), tail))
-    | Sequence (s1, s2) ->
-      Sequence (aux_optimize s1, aux_optimize s2)
-    | Opt t -> Opt (aux_optimize t)
-    | Plus t -> Plus (aux_optimize t)
-    | Star t -> Star (aux_optimize t)
-    | Tokenizer t -> Tokenizer (aux_optimize t)
-    | Transform (f, t) -> Transform (f, aux_optimize t)
-    | PredicateAND t -> PredicateAND (aux_optimize t)
-    | PredicateNOT t -> PredicateNOT (aux_optimize t)
-    | Bind (v, vs, t) -> Bind (v, vs, aux_optimize t)
-    | other -> other
-  in
-    List.map (fun (name, expr) -> name, aux_optimize expr) rules
-                      
 let generate verbose declaration rules start_rule output_file =
   let rules = try_optimize rules in
   let sorted = rearrange_grammar rules in
