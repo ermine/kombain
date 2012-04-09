@@ -115,13 +115,13 @@
                                    TokenizedType |
                                    EnumeratedType
    [55]    StringType       ::=    'CDATA'
-   [56]    TokenizedType    ::=    'ID'
+   [56]    TokenizedType    ::=      'IDREFS'
                                    | 'IDREF'
-                                   | 'IDREFS'
+                                   | 'ID'
                                    | 'ENTITY'
                                    | 'ENTITIES'
-                                   | 'NMTOKEN'
                                    | 'NMTOKENS'
+                                   | 'NMTOKEN'
 
    [57]    EnumeratedType    ::=    NotationType |
                                     Enumeration

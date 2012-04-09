@@ -118,12 +118,12 @@ autoLinkEmail       <- '<' < alpha+ "@" (!newLine !'>' .)+ > '>'
                            Link ([Text lexeme], Src (("mailto:" ^ lexeme), None))
                        }
 
-htmlBlockTagName    <- "address" / "blockquote" / "center" / "dir" / "div" 
-                     / "dl" / "fieldset" / "form" / "h1" / "h2" / "h3" / "h4" 
-                     / "h5" / "h6" / "hr" / "isindex" / "menu" / "noframes"
-                     / "noscript" / "ol" / "p" / "pre" / "table" / "ul"
-                     / "dd" / "dt" / "frameset" / "li" / "tbody" / "td" 
-                     /  "tfoot" / "th" / "thead" / "tr" / "script"
+htmlBlockTagName    <- "address" / "blockquote" / "center" / "dd" / "dir" 
+                     / "div" / "dl" / "dt" / "fieldset" / "form" / "fragment"
+                     / "h1" / "h2" / "h3" / "h4" / "h5" / "h6" / "hr" 
+                     / "isindex" / "li" / "menu" / "noframes" / "noscript" 
+                     / "ol" / "pre" / "p" / "table" / "tbody" / "td" 
+                     /  "tfoot" / "thead" / "th" / "tr" / "script" / "ul"
 
 htmlBlockTag        <- "<" spnl < htmlBlockTagName > spnl htmlAttribute* ">"
                        { fun (name, attrs) -> (name.lexeme, attrs) }
