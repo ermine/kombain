@@ -4,9 +4,16 @@ let find_rule name (rules:((string*string list)*token) list) =
   let (_, token) = List.find (fun ((n, _), _) -> n = name) rules in
     token
 
+let get_rule name rules =
+  try Some(List.find (fun ((n, _), _) -> n = name) rules)
+  with Not_found -> None
+
 let mem_rule name rules =
   List.exists (fun ((n, _), _) -> n = name) rules
         
+let resolve (name, _) rules =
+  try Some (find_rule name rules) with Not_found -> None
+
 let rec get_prefix acc = function
   | [], [] -> assert false
   | [], t2 -> List.rev acc, Epsilon, Literal t2
@@ -124,9 +131,6 @@ let rec optimize_epsilon = function
   | Alternate (a1, Epsilon) -> Opt (optimize_epsilon a1)
   | Alternate (a1, a2) -> Alternate (optimize_epsilon a1, optimize_epsilon a2)
               
-  let resolve (name, _) rules =
-    try Some (find_rule name rules) with Not_found -> None
-
   let rec is_terminal = function
     | Epsilon | Any | Literal _ | Class _ -> true
     | Opt t | Plus t | Star t | PredicateNOT t | PredicateAND t -> is_terminal t
@@ -162,60 +166,59 @@ let rec optimize_epsilon = function
     List.map (fun (name, expr) -> name, aux_inline expr) rules
 
 let  try_optimize rules =
-  let rec concat_class = function
-    | Literal [l1], Literal [l2] -> Some (Class [Char l1; Char l2])
-    | Literal [l], Class cs -> Some (Class (Char l :: cs))
-    | Class cs, Literal [l] -> Some (Class (cs @ [Char l]))
-    | Class cs1, Class cs2 -> Some (Class (cs1 @ cs2))
-    | Name n1, Name n2 -> (
-      match resolve n1 rules, resolve n2 rules with
-        | Some t1, Some t2 -> concat_class (t1, t2)
-        | _ -> None)
-    | Name n, t2 -> (
-      match resolve n rules with
-        | Some t -> concat_class (t, t2)
-        | _ -> None)
-    | t, Name n -> (
-      match resolve n rules with
-        | Some t2 -> concat_class (t, t2)
-        | _ -> None
-    )
-    | _ -> None
-  in
   let rec aux_optimize = function
-    | Alternate (a1, Alternate (a2, tail)) -> (
-      match concat_class (a1, a2) with
-        | None ->
-          Alternate (aux_optimize a1, aux_optimize (Alternate (a2, tail)))
-        | Some r ->
-          aux_optimize (Alternate (r, tail))
-    )
-    | Alternate (a1, a2) -> (
-      match concat_class (a1, a2) with
-        | None -> Alternate (aux_optimize a1, aux_optimize a2)
-        | Some r -> r
-    )
-    | Sequence (Literal l1, Literal l2) ->
-      Literal (l1 @  l2)
-    | Sequence (Literal l1, Sequence (Literal l2, tail)) ->
-      aux_optimize (Sequence (Literal (l1 @ l2), tail))
-    | Sequence (s1, s2) ->
-      Sequence (aux_optimize s1, aux_optimize s2)
+    | Epsilon | Any | Class _ | Literal _ | Name _ as t -> t
     | Opt t -> Opt (aux_optimize t)
-    | Plus t -> Plus (aux_optimize t)
+    | Plus t ->Plus (aux_optimize t)
     | Star t -> Star (aux_optimize t)
+    | PredicateNOT t -> PredicateNOT (aux_optimize t)
+    | PredicateAND t -> PredicateAND (aux_optimize t)
+    | Pattern (n, t) -> Pattern (n, aux_optimize t)
     | Tokenizer t -> Tokenizer (aux_optimize t)
     | Transform (f, t) -> Transform (f, aux_optimize t)
-    | PredicateAND t -> PredicateAND (aux_optimize t)
-    | PredicateNOT t -> PredicateNOT (aux_optimize t)
     | Bind (v, vs, t) -> Bind (v, vs, aux_optimize t)
-    | other -> other
+    | Alternate (a1, a2) -> (
+      let z1 = aux_optimize a1 and z2 = aux_optimize a2 in
+        match z1, z2 with
+          | Literal [l1], Literal [l2] -> Class [Char l1; Char l2]
+          | Literal [l], Class cs -> Class (Char l :: cs)
+          | Class cs, Literal [l] -> Class (cs @ [Char l])
+          | Class cs1, Class cs2 -> Class (cs1 @ cs2)
+          | _, _ -> Alternate (z1, z2)
+    )
+    | Sequence (s1, s2) ->
+      let z1 = aux_optimize s1 and z2 = aux_optimize s2 in
+        match z1, z2 with
+          | Literal l1, Literal l2 -> Literal (l1 @ l2)
+          | _, _ -> Sequence (z1, z2)
   in
   let rules = inline_token rules in
     List.map (fun (name, expr) -> name,
       optimize_epsilon (aux_optimize (analyze_alts expr))) rules
                       
-
-(* TODO
-let remove_unused_rules rules =
-*)   
+let remove_unused_rules start rules =
+  let rec check_rule n acc =
+    if mem_rule n acc then
+      acc
+    else
+      match get_rule n rules with
+        | Some (n, t) -> aux_scan ((n, t) :: acc) t
+        | None -> acc
+  and check_params params acc =
+    List.fold_left (fun acc -> function
+      | Ident i -> check_rule i acc
+      | Func (f, ps) -> check_params ps (check_rule f acc)
+      | _ -> acc
+    ) acc params
+  and aux_scan acc = function
+    | Name (n, ps) -> check_params ps (check_rule n acc)
+    | Epsilon | Any | Literal _ | Class _ -> acc
+    | Sequence (s1, s2) -> aux_scan (aux_scan acc s1) s2
+    | Alternate (a1, a2) -> aux_scan (aux_scan acc a1) a2
+    | PredicateNOT t | PredicateAND t | Opt t | Star t | Plus t
+    | Tokenizer t | Transform (_, t) | Pattern (_, t)
+    | Bind (_, _, t) -> aux_scan acc t
+  in
+    match get_rule start rules with
+      | Some (n, t) -> aux_scan [n, t] t
+      | None -> assert false

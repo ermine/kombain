@@ -276,6 +276,7 @@ let make_rule_function _loc verbose (name, params) expr rules =
 
 let generate verbose declaration rules start_rule output_file =
   let rules = try_optimize rules in
+  let rules = remove_unused_rules start_rule rules in
   let sorted = rearrange_grammar rules in
   let _loc = Loc.ghost in
   let bindings =
