@@ -114,6 +114,7 @@ let rec analyze_alts = function
     
     
 let rec optimize_epsilon = function
+  | PredicateNOT (PredicateNOT t) -> PredicateAND (optimize_epsilon t)
   | Epsilon -> failwith "epsilon"
   | Name _ | Any | Class _ | Literal _ as t -> t
   | Opt t -> Opt (optimize_epsilon t)

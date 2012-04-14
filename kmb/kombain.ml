@@ -56,7 +56,9 @@ let () =
                 (Kmb_input.get_remaining rest);
               let newrules = Kmb_util.try_optimize ast in
                 List.iter (fun r ->
-                  Printf.printf "%s\n" (string_of_rule r)) newrules
+                  Kmb_pp.pp_rule Format.std_formatter r;
+                  Format.print_newline ()
+                ) newrules
       )
         
       | Generate (verbose, pegfile, mlfile) ->

@@ -12,5 +12,7 @@ let () =
     match result with
       | Failed ->
         printf "failed\n"
-      | Parsed (ast, rest) ->
+      | Parsed (ast, rest) ->        
         printf "success\n";
+        printf "Remaining input is: %S\n" (Kmb_input.get_remaining rest)
+        

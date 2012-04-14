@@ -15,7 +15,7 @@ let () =
       | Parsed (ast, rest) ->
         printf "success\n";
         List.iter (fun (name, (defined_as, rule)) ->
-          Printf.printf "%s <- %s\n\n"
-            (Abnf_lib.convert_name name.Kmb_input.lexeme)
-            (Kmb_grammar.string_of_token (Abnf_lib.make_peg rule))
+          Kmb_pp.pp_rule Format.std_formatter 
+            ((Abnf_lib.convert_name name.Kmb_input.lexeme, []),
+             Abnf_lib.make_peg rule)
         ) ast
