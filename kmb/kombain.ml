@@ -18,7 +18,7 @@ let () =
         Dump Sys.argv.(2)
       else if (Sys.argv.(1) = "--verbose" || Sys.argv.(1) = "-V") &&
           arg_len > 3 then
-        Generate (true, Sys.argv.(2), Sys.argv.(2))
+        Generate (true, Sys.argv.(2), Sys.argv.(3))
       else
         Generate (false, Sys.argv.(1), Sys.argv.(2))
       else
@@ -50,11 +50,18 @@ let () =
           match result with
             | Failed ->
               Printf.printf "failed";
-            | Parsed ((_,(_, ast)), rest) ->
+            | Parsed ((_,(start, ast)), rest) ->
               Printf.printf "Parsed\n";
               Printf.printf "Remaining input is: %S\n\n"
                 (Kmb_input.get_remaining rest);
+              let start =
+                match start with
+                  | Some v -> v.lexeme
+                  | None ->
+                    let ((name, _), _) = List.hd ast in name
+              in
               let newrules = Kmb_util.try_optimize ast in
+              let newrules = Kmb_util.remove_unused_rules start newrules in
                 List.iter (fun r ->
                   Kmb_pp.pp_rule Format.std_formatter r;
                   Format.print_newline ()

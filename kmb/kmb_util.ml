@@ -221,5 +221,5 @@ let remove_unused_rules start rules =
     | Bind (_, _, t) -> aux_scan acc t
   in
     match get_rule start rules with
-      | Some (n, t) -> aux_scan [n, t] t
+      | Some (n, t) -> List.rev (aux_scan [n, t] t)
       | None -> assert false
