@@ -27,6 +27,14 @@ let transform r f input =
         Parsed (r, input)
     | Failed -> Failed
 
+let fail r msg input =
+  match r input with
+    | Parsed _ as ok -> ok
+    | Failed ->
+      printf "%s\nSyntax error: %s\n"
+        (Kmb_input.string_of_location input) msg;
+      exit 1
+      
 let predicate_not cond input =
   match cond input with
     | Parsed _ -> Failed

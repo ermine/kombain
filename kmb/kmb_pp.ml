@@ -122,8 +122,11 @@ let rec pp_token ppf = function
   | Transform (fn, t) ->
     fprintf ppf "@[<v 0>";
     pp_token ppf t;
-    fprintf ppf "@ { %s }" fn.Kmb_input.lexeme;
-    fprintf ppf "@]"
+    fprintf ppf "@ { %s }@]" fn.Kmb_input.lexeme;
+  | Fail (msg, t) ->
+    fprintf ppf "@[<h 0>";
+    pp_token ppf t;
+    fprintf ppf "@ %%fail \"%s\"@]" msg
   | Tokenizer t ->
     fprintf ppf "< ";
     pp_token ppf t;

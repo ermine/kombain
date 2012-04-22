@@ -2,6 +2,8 @@ exception Syntax of string
 type 'a result = Parsed of 'a * Kmb_input.input | Failed
 val return : 'a -> Kmb_input.input -> 'a result
 val transform : ('a -> 'b result) -> ('b -> 'c) -> 'a -> 'c result
+val fail :
+  (Kmb_input.input -> 'a result) -> string -> Kmb_input.input -> 'a result
 val predicate_not :
   (Kmb_input.input -> 'a result) -> Kmb_input.input -> unit result
 val predicate_and :

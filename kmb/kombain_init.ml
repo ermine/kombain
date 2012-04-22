@@ -184,7 +184,7 @@ let class_char input =
        (seq_l (star_accu (seq_r
                             (predicate_not (test_char ']'))
                             range))
-          (seq_n (test_char ']') spacing)
+          (seq_n (fail (test_char ']') "Expected ']'") spacing)
        ))
     make_class
     input
@@ -196,7 +196,8 @@ let def_literal input =
           (test_char '\'')
           (seq_l
              (star_accu (seq (predicate_not (test_char '\'')) char_sign))
-             (seq_n (test_char '\'') spacing)))
+             (seq_n (fail (test_char '\'') "Expected '\''")
+                spacing)))
        (seq_r
           (test_char '"')
           (seq_l
@@ -218,13 +219,26 @@ and action' input =
                     (seq_n (predicate_not (test_char '}')) test_any)))
        (seq_n (test_char '}') spacing))
     input
-    
+
+let def_fail input =
+  transform
+    (seq (match_pattern (List.map Char.code ['%';'f';'a';'i';'l']))
+       (seq_r spacing
+          (seq_r (test_char '"')
+             (seq_l (get_lexeme (star (seq (predicate_not (test_char '"'))
+                                         (alt (match_pattern [Char.code '\\';
+                                                              Char.code '"'])
+                                            test_any))))
+                (seq_n (fail (test_char '"') "Expected '\"'")
+                   spacing)))))
+    (fun l -> l.lexeme)
+    input
     
 let rec def_primary input =
   alt
     (transform (seq_l def_identifier (predicate_not leftarrow)) make_name)
     (alt
-       (seq_r lparen (seq_l def_expression rparen))
+       (seq_r lparen (seq_l def_expression (fail rparen "Expected ')'")))
        (alt
           def_literal
           (alt
@@ -284,8 +298,11 @@ and def_pattern input =
     input
   
 and def_item input =
-  alt def_pattern
-    def_prefix
+  transform
+    (seq_b (alt def_pattern
+              def_prefix)
+       (opt_accu def_fail))
+    (fun (i, f) -> match f with None -> i | Some msg -> Fail (msg, i))
     input
   
 and def_sequence input =

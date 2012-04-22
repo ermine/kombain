@@ -18,6 +18,7 @@ type token =
   | Literal of int list
   | Class of class_t list
   | Transform of lexeme * token
+  | Fail of string * token
   | Any
   | Tokenizer of token
   | Opt of token
@@ -233,7 +234,7 @@ let make_alternates (s1, s2) =
       Alternate (s1, 
                  List.fold_left (fun acc s -> Alternate (s, acc)) x xs)
 
-let make_sequence (items, a) =
+let make_sequence (items, transform) =
   let expr =
     match List.rev items with
       | [] -> Epsilon
@@ -241,7 +242,7 @@ let make_sequence (items, a) =
       | x :: xs ->
         List.fold_left (fun acc i -> Sequence (i, acc)) x xs
   in
-    match a with
+    match transform with
       | None -> expr
       | Some lexeme -> Transform (lexeme, expr)
     
@@ -263,30 +264,18 @@ let make_prefix (f, s) =
     | None -> s
     | Some f -> f s
 
-let unmatched {lexeme} =
-  raise (Kmb_lib.Syntax (sprintf "Not found matched pair for %S" lexeme))
-
 let invalid_char {start = (line, col); lexeme} =
   raise (Kmb_lib.Syntax (sprintf "Invalid char %S" lexeme))
 
 let rec is_productive known = function
   | Name (name, params) -> List.mem name known
-  | Class _ -> true
-  | Literal _ -> true
-  | Any -> true
-  | Pattern (_, t) -> is_productive known t
-  | PredicateAND t -> is_productive known t
-  | PredicateNOT t -> is_productive known t
+  | Epsilon | Any | Literal _ | Class _ -> true
+  | Opt t | Star t | Plus t | Fail (_, t) 
+  | Pattern (_, t) | PredicateAND t | PredicateNOT t -> is_productive known t
   | Tokenizer t -> is_productive known t
   | Transform (_, t) -> is_productive known t
-  | Star t -> is_productive known t
-  | Opt t -> is_productive known t
-  | Plus t -> is_productive known t
-  | Epsilon -> true
-  | Sequence (t1, t2) ->    
-    is_productive known t1 && is_productive known t2
-  | Alternate (t1, t2) ->
-    is_productive known t1 && is_productive known t2
+  | Sequence (t1, t2) -> is_productive known t1 && is_productive known t2
+  | Alternate (t1, t2) -> is_productive known t1 && is_productive known t2
   | Bind (_, _, t) -> is_productive known t
 
 let simple_productive known rules =

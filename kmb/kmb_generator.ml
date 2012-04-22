@@ -8,52 +8,31 @@ module Caml =
     (Camlp4OCamlParser.Make
        (Camlp4OCamlRevisedParser.Make(Syntax)))
 
-
 open Syntax
     
 let rec should_export (rules:((string*string list)*token) list) names = function
-  | Epsilon -> false
-  | Name (name, params) ->
-    (* if params = [] then *)
-      if List.mem name names then
-        (* recursive definition like A <- A *)
-        false
-      else (
-        try
-          if not (should_export rules (name :: names) (find_rule name rules))
-          then if params = [] then
-              false
-            else
-              false
-          else
-            true
-                (*
-              List.find (function
-                | Ident n ->
-                  try should_export rules (n :: names) (find_rule n)
-                  )
-                *)
-        with Not_found ->
-          printf "Warning: Not found rule: %s\n" name;
+  | Epsilon | Any | Literal _ | Class _ -> false
+  | PredicateNOT _ | PredicateAND _ -> false
+  | Bind _ -> false
+  | Star t | Plus t | Opt t | Pattern (_, t) | Fail (_, t) ->
+    should_export rules names t
+  | Sequence (t1, t2) ->
+    should_export rules names t1 || should_export rules names t2
+  | Alternate (t1, t2) ->
+    should_export rules names t1
+  | Tokenizer _ | Transform _ -> true
+  | Name (n, ps) -> mem_rule n rules
+    (*
+    if List.mem n names then
+      false
+    else
+      match try Some (find_rule n rules) with _ -> None with
+        | None ->
+          printf "Warning: Not found rule: %s\n" n;
           false
-      )
-  | Transform _ -> true
-  | Tokenizer _ -> true
-  | Pattern (_, expr) -> should_export rules names expr
-  | PredicateNOT _ -> false
-  | PredicateAND _ -> false
-  | Opt expr -> should_export rules names expr
-  | Plus expr -> should_export rules names expr
-  | Star expr -> should_export rules names expr
-  | Literal _ -> false
-  | Class _ -> false
-  | Any -> false
-  | Alternate (e1, e2) -> should_export rules names e1
-  | Sequence (e1, e2) ->
-    should_export rules names e1 || should_export rules names e2
-  | Bind (var, vars, t) -> false
-
-
+        | Some t -> should_export rules (n :: names) t
+    *)
+          
 let rec make_rule_expr _loc rules names params verbose = function
   | Epsilon ->
     <:expr< peg_stub >>
@@ -106,10 +85,9 @@ let rec make_rule_expr _loc rules names params verbose = function
             else e
 
   | Sequence (Pattern (name, expr), xs) ->
-    let rules = ((name, []), Epsilon) :: rules in
-      <:expr< fun input ->
-        match get_pattern $make_rule_expr _loc rules names params verbose expr$
-          input with
+    <:expr< fun input ->
+      match get_pattern $make_rule_expr _loc rules names params verbose expr$
+        input with
           | Parsed (r, input) ->
             let $lid:name$ = match_pattern r in
               $make_rule_expr _loc rules names params verbose xs$ input
@@ -177,6 +155,12 @@ let rec make_rule_expr _loc rules names params verbose = function
         $make_rule_expr _loc rules names params verbose expr$
         $code_expr$
       >>
+
+  | Fail (msg, expr) ->
+    <:expr< fail
+      $make_rule_expr _loc rules names params verbose expr$
+      $`str:msg$
+    >>
 
   | Opt t ->
     let export = should_export rules names t in
@@ -278,20 +262,21 @@ let generate verbose declaration rules start_rule output_file =
   let rules = try_optimize rules in
   let rules = remove_unused_rules start_rule rules in
   let sorted = rearrange_grammar rules in
+  let infered = Kmb_util.try_infer rules in
   let _loc = Loc.ghost in
   let bindings =
     List.fold_left (fun acc -> function
       | Simple simples ->
         List.fold_left (fun acc ((name, params), expr) ->
           make_rule_function _loc verbose (name, params) expr
-            rules :: acc) acc simples
+            infered :: acc) acc simples
       | Recursive rs ->
         let bs =
           List.map (fun ((name, params), expr) ->
             printf "Generating for rule %s\n" name;
             let e =
               List.fold_left (fun expr arg -> <:expr< fun $lid:arg$ -> $expr$ >>)
-                <:expr< $make_rule_expr _loc rules [name] params verbose expr$
+                <:expr< $make_rule_expr _loc infered [name] params verbose expr$
                 input >>
                 ("input" :: List.rev params)
             in

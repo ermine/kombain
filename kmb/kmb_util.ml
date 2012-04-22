@@ -35,6 +35,7 @@ let rec analyze_alts = function
   | Bind (v, vs, t) -> Bind (v, vs, analyze_alts t)
   | Pattern (n, t) -> Pattern (n, analyze_alts t)
   | Transform (f, t) -> Transform (f, analyze_alts t)
+  | Fail (m, t) -> Fail (m, analyze_alts t)
   | Sequence (s1, s2) -> Sequence (analyze_alts s1, analyze_alts s2)
   | Alternate (a1, a2) ->
     let z1 = analyze_alts a1 and z2 = analyze_alts a2 in
@@ -51,9 +52,15 @@ let rec analyze_alts = function
               analyze_alts (Sequence (Literal prefix,
                                       Alternate (tail1, tail2)))
 
-        | s1, Alternate (t1, t2) ->
-          Alternate (analyze_alts (Alternate (s1, t1)), t2)          
-                
+        | Alternate (a1, a2), _ ->
+          analyze_alts (Alternate (a1, (Alternate (a2, z2))))
+
+        | s1, Alternate (t1, t2) -> (
+          match analyze_alts (Alternate (s1, t1)) with
+            | Alternate _ -> Alternate (z1, z2)
+            | other -> Alternate (other, t2)
+        )
+            
         | Literal l1, Sequence (Literal l2, t2) ->
           let prefix, tail1, tail2 = get_prefix [] (l1, l2) in
             if prefix = [] then
@@ -108,7 +115,8 @@ let rec analyze_alts = function
 
         |  t1, t2 ->
           if t1 = t2 then
-            failwith "strange alternation"
+            (* failwith "strange alternation" *)
+            t1
           else
             Alternate (z1, z2)
     
@@ -127,6 +135,7 @@ let rec optimize_epsilon = function
   | Pattern (n, t) -> Pattern (n, optimize_epsilon t)
   | Transform (f, Epsilon) as t -> t
   | Transform (f, t) -> Transform (f, optimize_epsilon t)
+  | Fail (m, t) -> Fail (m, optimize_epsilon t)
   | Sequence (s1, Epsilon) -> optimize_epsilon s1
   | Sequence (s1, s2) -> Sequence (optimize_epsilon s1, optimize_epsilon s2)
   | Alternate (a1, Epsilon) -> Opt (optimize_epsilon a1)
@@ -140,31 +149,37 @@ let rec optimize_epsilon = function
     | _ -> false
 
   let inline_token rules =
-  let rec aux_inline = function
+  let rec aux_inline names = function
     | Epsilon | Any | Literal _ | Class _ as t -> t
     | Name (n, []) -> (
-      match resolve (n, []) rules with
-        | Some t ->
-          if is_terminal t then
-            t
-          else
-            Name (n, [])
-        | None -> Name (n, [])
+      if List.mem n names then
+        Name (n, [])
+      else
+        match resolve (n, []) rules with
+          | Some t ->
+          (* aux_inline (n :: names) t *)
+            if is_terminal t then
+              t
+            else
+              Name (n, [])
+          | None -> Name (n, [])
+            
     )
-    | Name n as t -> t
-    | Opt t -> Opt (aux_inline t)
-    | Star t -> Star (aux_inline t)
-    | Plus t -> Plus (aux_inline t)
-    | PredicateAND t -> PredicateAND (aux_inline t)
-    | PredicateNOT t -> PredicateNOT (aux_inline t)
-    | Tokenizer t -> Tokenizer (aux_inline t)
-    | Transform (f, t) -> Transform (f, aux_inline t)
-    | Pattern (n, t) -> Pattern (n, aux_inline t)
-    | Bind (v, vs, t) -> Bind (v, vs, aux_inline t)
-    | Sequence (s1, s2) -> Sequence (aux_inline s1, aux_inline s2)
-    | Alternate (a1, a2) -> Alternate (aux_inline a1, aux_inline a2)
+    | Name (n, ps) as t -> t
+    | Opt t -> Opt (aux_inline names t)
+    | Star t -> Star (aux_inline names t)
+    | Plus t -> Plus (aux_inline names t)
+    | PredicateAND t -> PredicateAND (aux_inline names t)
+    | PredicateNOT t -> PredicateNOT (aux_inline names t)
+    | Tokenizer t -> Tokenizer (aux_inline names t)
+    | Transform (f, t) -> Transform (f, aux_inline names t)
+    | Fail (m, t) -> Fail (m, aux_inline names t)
+    | Pattern (n, t) -> Pattern (n, aux_inline names t)
+    | Bind (v, vs, t) -> Bind (v, vs, aux_inline names t)
+    | Sequence (s1, s2) -> Sequence (aux_inline names s1, aux_inline names s2)
+    | Alternate (a1, a2) -> Alternate (aux_inline names a1, aux_inline names a2)
   in
-    List.map (fun (name, expr) -> name, aux_inline expr) rules
+    List.map (fun ((name, ps), expr) -> (name, ps), aux_inline [name] expr) rules
 
 let  try_optimize rules =
   let rec aux_optimize = function
@@ -177,6 +192,7 @@ let  try_optimize rules =
     | Pattern (n, t) -> Pattern (n, aux_optimize t)
     | Tokenizer t -> Tokenizer (aux_optimize t)
     | Transform (f, t) -> Transform (f, aux_optimize t)
+    | Fail (m, t) -> Fail (m, aux_optimize t)
     | Bind (v, vs, t) -> Bind (v, vs, aux_optimize t)
     | Alternate (a1, a2) -> (
       let z1 = aux_optimize a1 and z2 = aux_optimize a2 in
@@ -185,12 +201,21 @@ let  try_optimize rules =
           | Literal [l], Class cs -> Class (Char l :: cs)
           | Class cs, Literal [l] -> Class (cs @ [Char l])
           | Class cs1, Class cs2 -> Class (cs1 @ cs2)
+          | a1, Alternate (a2, a3) ->
+            let r = aux_optimize (Alternate (a1, a2)) in
+              if r = Alternate (a1, a2) then
+                Alternate (z1, z2)
+              else
+                Alternate (r, a3)
+                                       
           | _, _ -> Alternate (z1, z2)
     )
     | Sequence (s1, s2) ->
       let z1 = aux_optimize s1 and z2 = aux_optimize s2 in
         match z1, z2 with
           | Literal l1, Literal l2 -> Literal (l1 @ l2)
+          | Literal l1, Sequence (Literal l2, s3) ->
+            Sequence (Literal (l1 @ l2), s3)
           | _, _ -> Sequence (z1, z2)
   in
   let rules = inline_token rules in
@@ -217,9 +242,32 @@ let remove_unused_rules start rules =
     | Sequence (s1, s2) -> aux_scan (aux_scan acc s1) s2
     | Alternate (a1, a2) -> aux_scan (aux_scan acc a1) a2
     | PredicateNOT t | PredicateAND t | Opt t | Star t | Plus t
-    | Tokenizer t | Transform (_, t) | Pattern (_, t)
+    | Tokenizer t | Transform (_, t) | Fail (_, t) | Pattern (_, t)
     | Bind (_, _, t) -> aux_scan acc t
   in
     match get_rule start rules with
       | Some (n, t) -> List.rev (aux_scan [n, t] t)
       | None -> assert false
+
+
+let try_infer rules =
+  let rec infer ts fs =
+    let nts, nfs = List.fold_left (fun (ts, fs) (((n, ps), expr) as rule) ->
+      let rec will_return = function
+        | Epsilon | Any | Literal _ | Class _
+        | PredicateAND _ | PredicateNOT _ | Bind _ -> false
+        | Star t | Plus t | Opt t | Fail (_, t) | Pattern (_, t) -> will_return t
+        | Sequence (t1, t2) -> will_return t1 || will_return t2
+        | Alternate (t1, t2) -> will_return t1 || will_return t2
+        | Tokenizer _ | Transform _ -> true
+        | Name (n, ps) -> mem_rule n ts
+      in
+        if will_return expr then rule :: ts, fs else ts, rule :: fs
+    ) (ts, []) fs
+  in
+    if List.rev nfs = fs then
+      nts
+    else
+      infer nts (List.rev nfs)
+  in
+    infer [] rules

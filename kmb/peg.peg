@@ -6,20 +6,27 @@ open Printf
 
 # Hierarchical syntax
 
-grammar		   <- spacing declaration? start_rule? definition+ endOfFile
+grammar		   <- spacing declaration? start_rule? definition+ endOfFile 
+                %fail "not parsed"
 
 start_rule   <- "%start " spacing name
 
-declaration  <- '%{' < ( !'%}' .)* > '%}' spacing       { make_declaration }
+declaration  <- '%{' < ( !'%}' .)* > '%}' %fail "Expected '%}'" spacing 
+                { make_declaration }
 
-definition   <- pname l_leftarrow expression
+definition   <- pname l_leftarrow %fail "Required <-" expression
               / name l_leftarrow expression 
                 { fun (n, e) -> ((n.lexeme, []), e) }
-              / . { fun () -> raise (Syntax "Invalid rule definition") }
 
 expression	<- sequence (l_slash sequence)*       { make_alternates }
 
-sequence	<- item* l_transform?                   { make_sequence }
+sequence	<- item_fail* l_transform?           { make_sequence }
+
+item_fail <- item l_fail?                      
+             { fun (i, f) -> 
+                 match f with
+                   | None -> i
+                   | Some msg -> Fail (msg, i)}
 
 item      <- ident l_AT suffix               { make_pattern }
            / param spacing l_EQ suffix       { fun (p, e) -> make_bind ([p],e) }
@@ -42,13 +49,12 @@ suffix		<- primary ( l_question 		    { fun _ r -> Opt r }
 
 primary		<- funct !l_leftarrow         { fun (n, ps) -> Name (n, ps) }
            / name !l_leftarrow          { make_name }
-		       / l_OPEN expression l_CLOSE
-           / < l_OPEN >                 { unmatched }
+		       / l_OPEN expression l_CLOSE %fail "Expected ')'"
            / literal                    { make_literal }
 		       / l_class 
 		       / l_dot
-		       / l_leftangle expression l_rightangle   { make_tokenizer }
-           / < l_leftangle >                       { unmatched }
+		       / l_leftangle expression l_rightangle %fail "Expected '>'"
+             { make_tokenizer }
 
 
 # Lexical syntax
@@ -58,12 +64,10 @@ ident       <- < (letter / '_') (letter / [0-9_'])* >
 name        <- ident !l_OPEN spacing
 letter      <- [A-Za-z]
 
-literal		  <- ['] (!['] char)* ['] spacing
-             / < ['] > { unmatched }
-		         / ["] (!["] char)* ["] spacing 
-             / < ["] > { unmatched }
-l_class	    <- '[' (!']' range)* ']' spacing   { make_class }
-             / < '[' > { unmatched }
+literal		  <- ['] (!['] char)* ['] %fail "Expected '''" spacing
+		         / ["] (!["] char)* ["] %fail "Expected '\"'" spacing
+l_class	    <- '[' (!']' range)* ']' %fail "Expected ']'" spacing  
+               { make_class } 
 range		    <- char '-' char                   { fun (c1, c2) -> Range (c1, c2) }
              / char < '-' >                    { fun (_, c) -> invalid_char c }
              / char                            { fun c -> Char c }
@@ -92,10 +96,9 @@ space		    <- ' ' / '\t' / endOfLine
 endOfLine	  <- '\r\n' / '\r' / '\n'
 endOfFile	  <- !.
 
-l_transform		  <- '{' < (l_transform' / !'}' .)* >  '}' spacing
-               / < '{' > { unmatched }
-l_transform'    <- '{' (l_transform' / !'}' .)* '}'
-               / < '{' > { unmatched }
+l_transform		  <- '{' < (l_transform' / !'}' .)* >  '}' %fail "Expected '}'"
+                   spacing
+l_transform'    <- '{' (l_transform' / !'}' .)* '}' %fail "Expected '}'"
 
 l_leftangle	  <- '<' spacing
 l_rightangle	<- '>' spacing
@@ -123,3 +126,6 @@ fparam        <- funct { fun (n,ps) -> Func (n, ps) }
                              Ident lexeme }
                / < '-'? [0-9]+ > { fun ds -> Value ("int", ds.lexeme) }
                / literal { fun cs -> Value ("string", string_of_literal cs) }
+
+l_fail        <- "%fail" spacing ["] < ( !["] ('\\"' / .))+ > ["] spacing
+                 { fun l -> l.lexeme }

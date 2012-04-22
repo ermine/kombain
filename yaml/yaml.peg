@@ -449,7 +449,7 @@ c_flow_sequence(n,c) <-
 ns_s_flow_seq_entries(n,c) <- 
 ns_flow_seq_entry(n,c) s_separate(n,c)? 
 ("," s_separate(n,c)? 
-(ns_s_flow_seq_entries(n,c) { fun s -> s })?)?
+ns_s_flow_seq_entries(n,c)?)?
 { fun (s,ss) -> match ss with Some (Some ss) -> s :: ss | _ -> [s] }
 
 # [139]
@@ -467,7 +467,7 @@ ns_s_flow_map_entries(n,c) <-
 ns_flow_map_entry(n,c)
 s_separate(n,c)? 
 ("," s_separate(n,c)? 
-(ns_s_flow_map_entries(n,c) { fun s -> s })?)?
+ ns_s_flow_map_entries(n,c) ?)?
 { fun (m, ms) -> match ms with Some (Some ms) -> m::ms | _ -> [m] }
 
 # [142]
