@@ -1,9 +1,11 @@
 # OASIS_START
-# DO NOT EDIT (digest: ff882fe29b5cc2cd0ce66e99970fa18b)
+# DO NOT EDIT (digest: 4c3c887358a42a979aed13a2ecea2404)
 version = "0.1"
 description = "PEG based parsers with useful grammars"
 archive(byte) = "kmb.cma"
+archive(byte, plugin) = "kmb.cma"
 archive(native) = "kmb.cmxa"
+archive(native, plugin) = "kmb.cmxs"
 exists_if = "kmb.cma"
 # OASIS_STOP
 

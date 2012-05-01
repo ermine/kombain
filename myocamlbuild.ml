@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 41a3d32084717e60bb80213bc7bc3b7d) *)
+(* DO NOT EDIT (digest: b3fd3ec4cb82f35ede46bce09b2abafc) *)
 module OASISGettext = struct
 # 21 "/usr/home/ermine/projects/ocaml/src/oasis/src/oasis/OASISGettext.ml"
   
@@ -114,6 +114,7 @@ module OASISExpr = struct
 end
 
 
+# 117 "myocamlbuild.ml"
 module BaseEnvLight = struct
 # 21 "/usr/home/ermine/projects/ocaml/src/oasis/src/base/BaseEnvLight.ml"
   
@@ -211,6 +212,7 @@ module BaseEnvLight = struct
 end
 
 
+# 215 "myocamlbuild.ml"
 module MyOCamlbuildFindlib = struct
 # 21 "/usr/home/ermine/projects/ocaml/src/oasis/src/plugins/ocamlbuild/MyOCamlbuildFindlib.ml"
   
@@ -543,6 +545,7 @@ module MyOCamlbuildBase = struct
 end
 
 
+# 548 "myocamlbuild.ml"
 open Ocamlbuild_plugin;;
 let package_default =
   {
@@ -555,6 +558,7 @@ let package_default =
           ("xml", ["kmb"]);
           ("textile", ["kmb"]);
           ("markdown", ["kmb"]);
+          ("ecmascript", ["kmb"]);
           ("bbcode", ["kmb"]);
           ("abnf", ["kmb"])
        ];
@@ -563,7 +567,7 @@ let package_default =
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 567 "myocamlbuild.ml"
+# 571 "myocamlbuild.ml"
 (* OASIS_STOP *)
 
 let () =

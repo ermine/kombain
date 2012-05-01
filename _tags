@@ -4,7 +4,7 @@
 <kmb/kmb_grammar.ml>: use_camlp4
 
 # OASIS_START
-# DO NOT EDIT (digest: 7b751c94bb30c77143c8b9dd2d283d09)
+# DO NOT EDIT (digest: 8cb890cf7185d22090d0bf7646937f85)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -18,36 +18,39 @@
 ".git": not_hygienic
 "_darcs": -traverse
 "_darcs": not_hygienic
+# Executable kombain_init
+"kmb/kombain_init.byte": pkg_dynlink
+# Executable kombain
+"kmb/kombain.byte": pkg_dynlink
+<kmb/*.ml{,i}>: pkg_dynlink
 # Library kmb
 "kmb/kmb.cmxs": use_kmb
+# Executable markdown_test
+"markdown/markdown_test.byte": use_kmb
+<markdown/*.ml{,i}>: use_kmb
+# Executable md2html
+"markdown/md2html.byte": pkg_tyxml
+<markdown/*.ml{,i}>: pkg_tyxml
+# Executable textile_test
+"textile/textile_test.byte": use_kmb
+<textile/*.ml{,i}>: use_kmb
 # Executable bbcode_test
 "bbcode/bbcode_test.byte": use_kmb
 <bbcode/*.ml{,i}>: use_kmb
 # Executable abnf2peg
 "abnf/abnf2peg.byte": use_kmb
 <abnf/*.ml{,i}>: use_kmb
-# Executable md2html
-"markdown/md2html.byte": pkg_tyxml
-<markdown/*.ml{,i}>: pkg_tyxml
-# Executable kombain
-"kmb/kombain.byte": pkg_dynlink
 # Executable xmlebnfreader
 "xml/xmlebnfreader.byte": use_kmb
-# Executable kombain_init
-"kmb/kombain_init.byte": pkg_dynlink
-<kmb/*.ml{,i}>: pkg_dynlink
-# Executable yaml_test
-"yaml/yaml_test.byte": use_kmb
-# Executable markdown_test
-"markdown/markdown_test.byte": use_kmb
-<markdown/*.ml{,i}>: use_kmb
 # Executable xmltest
 "xml/xmltest.byte": use_kmb
 <xml/*.ml{,i}>: use_kmb
-# Executable textile_test
-"textile/textile_test.byte": use_kmb
-<textile/*.ml{,i}>: use_kmb
 # Executable yamlspecreader
 "yaml/yamlspecreader.byte": use_kmb
+# Executable yaml_test
+"yaml/yaml_test.byte": use_kmb
 <yaml/*.ml{,i}>: use_kmb
+# Executable es_test
+"ecmascript/es_test.byte": use_kmb
+<ecmascript/*.ml{,i}>: use_kmb
 # OASIS_STOP

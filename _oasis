@@ -67,3 +67,8 @@ Executable yaml_test
   Path:		yaml
   MainIs:	yaml_test.ml
   BuildDepends:	kmb 
+
+Executable es_test
+  Path:         ecmascript
+  MainIs:       es_test.ml
+  BuildDepends: kmb

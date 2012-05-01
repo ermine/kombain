@@ -44,8 +44,11 @@ let rec analyze_alts = function
           let prefix, tail1, tail2 = get_prefix [] (l1, l2) in
             if prefix = [] then
               Alternate (z1, z2)
-            else if tail1 = Epsilon then
+            else if tail1 = Epsilon then (
+              Printf.printf "%s\n" (string_of_token a1);
+              Printf.printf "%s\n" (string_of_token a2);
               failwith "unordered alternation"
+              )
             else (* if tail2 = Epsilon then
                     Sequence (Literal prefix, Opt tail1)
                     else *)
@@ -219,8 +222,13 @@ let  try_optimize rules =
           | _, _ -> Sequence (z1, z2)
   in
   let rules = inline_token rules in
-    List.map (fun (name, expr) -> name,
-      optimize_epsilon (aux_optimize (analyze_alts expr))) rules
+    List.map (fun (name, expr) ->
+      try name,
+        optimize_epsilon (aux_optimize (analyze_alts expr))
+      with exn ->
+        Printf.printf "%s\n" (string_of_rule  (name, expr));
+        raise exn
+    ) rules
                       
 let remove_unused_rules start rules =
   let rec check_rule n acc =
