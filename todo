@@ -10,3 +10,8 @@ a <- (!b .) свести в одну функцию
 
 a <- a bc / a q w left-factorize to a (b c / q w)
 
+
+Pretty printing camlp4 parser error for declarations
+
+Add data processors/callbacks for parsed results inside parsing process,
+to call callback instead of transforming them

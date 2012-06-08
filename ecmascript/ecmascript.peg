@@ -1,5 +1,5 @@
-# grammar <- (inputElementDiv / inputElementRegExp)* # eof
-grammar <- inputElementDiv*
+grammar <- (inputElementDiv / inputElementRegExp)* # eof
+# grammar <- inputElementDiv*
 eof <- !.
 
 ### A.1 Lexical Grammar
@@ -46,28 +46,25 @@ comment <-
  / singleLineComment
 
 multiLineComment <-
-   "/*" multiLineCommentChars? "*/"
+   "/*" multiLineCommentChar* "*/"
 
-multiLineCommentChars <-
-   multiLineNotAsteriskChar multiLineCommentChars?
- / "*" postAsteriskCommentChars?
+multiLineCommentChar <-
+   multiLineNotAsteriskChar
+ / "*" postAsteriskCommentChars
 
 postAsteriskCommentChars <-
-   multiLineNotForwardSlashCharAsteriskChar multiLineCommentChars?
+   multiLineNotForwardSlashCharOrAsteriskChar multiLineCommentChar*
  / "*" postAsteriskCommentChars?
 
 multiLineNotAsteriskChar <-
    !"*" sourceCharacter
 
-multiLineNotForwardSlashCharAsteriskChar <-
+multiLineNotForwardSlashCharOrAsteriskChar <-
    ![/*] sourceCharacter
                 
 singleLineComment <-
-   "//" singleLineCommentChars?
+   "//" singleLineCommentChar*
                 
-singleLineCommentChars <-
-   singleLineCommentChar singleLineCommentChars?
-
 singleLineCommentChar <-
    !lineTerminator sourceCharacter
 
@@ -81,8 +78,7 @@ identifier <-
    !reserverdWord identifierName
 
 identifierName <-
-   identifierStart
- / identifierName identifierPart
+   identifierStart identifierPart*
 
 identifierStart <-
    unicodeLetter
@@ -106,7 +102,8 @@ unicodeLetter <-
 
 unicodeCombiningMark <-
    # any character in the Unicode categories "Non-spacing mark (Mn)", or
-  "# Combining spacing mark(Mc)"
+   # "Combining spacing mark(Mc)"
+      [\x0300] # more characters
 
 unicodeDigit <-
    # any character in the Unicode category "Decimal number (Nd)"
@@ -114,7 +111,7 @@ unicodeDigit <-
 
 unicodeConnectorPunctuation <-
    # any character in the Unicode category "Connector punctuation (Pc)"
-   [\x005F \x203F \x2040 \x2054 \xFE33 \xFE34 \xFE4D \xFE4E \xFE4F \xFF3F]
+   [\x005F\x203F\x2040\x2054\xFE33\xFE34\xFE4D\xFE4E\xFE4F\xFF3F]
 
 reserverdWord <-
    keyword
@@ -136,12 +133,12 @@ futureReserverdWord <-
 
 punctuator <-
    "{"   / "}"    / "("   / ")"   / "["   / "]"
- / "."   / ";"    / ","   / "<"   / ">"   / "<=" 
- / ">="  / "=="   / "!="  / "===" / "!==" 
+ / "."   / ";"    / ","   / "<="   / "<"   / ">=" 
+ / ">"  / "="   / "!="  / "===" / "!==" 
  / "+"   / "-"    / "*"   / "%"   / "++"  / "--"
  / "<<"  / ">>>"  / ">>" / "&"   / "|"   / "^"   
  / "!"   / "~"    / "&&"  / "||"  / "?"   / ":"
- / "="   / "+="   / "-="  / "*="  / "%="  / "<<=" 
+ / "=="   / "+="   / "-="  / "*="  / "%="  / "<<=" 
  / ">>=" / ">>>=" / "&="  / "|="  / "^="
 
 divPunctuator <-
@@ -165,17 +162,13 @@ numericLiteral <-
  / hexIntegerLiteral
 
 decimalLiteral <-
-   decimalIntegerLiteral "." decimalDigits? exponentPart?
- / "." decimalDigits exponentPart?
+   decimalIntegerLiteral "." decimalDigit* exponentPart?
+ / "." decimalDigit+ exponentPart?
  / decimalIntegerLiteral exponentPart?
 
 decimalIntegerLiteral <-
    "0"
- / nonZeroDigit decimalDigits?
-
-decimalDigits <-
-   decimalDigit
- / decimalDigits decimalDigit
+ / nonZeroDigit decimalDigit*
 
 decimalDigit <-
    [0-9]
@@ -190,14 +183,13 @@ exponentIndicator <-
    [eE]
 
 signedInteger <-
-   decimalDigits
- / "+" decimalDigits
- / "-" decimalDigits
+   decimalDigit+
+ / "+" decimalDigit+
+ / "-" decimalDigit+
 
 hexIntegerLiteral <-
-   "0x" hexDigit
- / "0X" hexDigit
- / hexIntegerLiteral hexDigit
+   "0x" hexDigit+
+ / "0X" hexDigit+
 
 hexDigit <-
    [0123456789abcdefABCDEF]
@@ -257,11 +249,7 @@ regularExpressionLiteral <-
    "/" regularExpressionBody "/" regularExpressionFlags
 
 regularExpressionBody <-
-   regularExpressionFirstChar regularExpressionChars
-
-regularExpressionChars <-
-   regularExpressionChars regularExpressionChar
- / # [empty]
+   regularExpressionFirstChar regularExpressionChar*
 
 regularExpressionFirstChar <-
    [*\\/\[] regularExpressionNonTerminator
@@ -318,13 +306,9 @@ strDecimalLiteral <-
 
 strUnsignedDecimalLiteral <-
    infinity
- / decimalDigits "." decimalDigits? exponentPart?
- / "." decimalDigits exponentPart?
- / decimalDigits exponentPart?
-
-decimalDigits <-
-   decimalDigit
- / decimalDigits decimalDigit
+ / decimalDigit+ "." decimalDigit* exponentPart?
+ / "." decimalDigit+ exponentPart?
+ / decimalDigit+ exponentPart?
 
 decimalDigit <-
    [0123456789]
@@ -336,9 +320,9 @@ exponentIndicator <-
    [eE]
 
 signedInteger <-
-   decimalDigits
- / "+" decimalDigits
- / "-" decimalDigits
+   decimalDigit+
+ / "+" decimalDigit+
+ / "-" decimalDigit+
 
 hexIntegerLiteral <-
    "0x" hexDigit
@@ -766,9 +750,9 @@ quantifierPrefix <-
    "*"
  / "+"
  / "?"
- / "{" decimalDigits "}"
- / "{" decimalDigits "," "}"
- / "{" decimalDigits "," decimalDigits "}"
+ / "{" decimalDigit+ "}"
+ / "{" decimalDigit+ "," "}"
+ / "{" decimalDigit+ "," decimalDigit+ "}"
 
 atom <-
    patternCharacter
@@ -873,7 +857,7 @@ jSONNumber <-
    "-"? decimalIntegerLiteral jSONFraction? exponentPart?
 
 jSONFraction <-
-   "." decimalDigits
+   "." decimalDigit+
 
 jSONNullLiteral <-
    nullLiteral
