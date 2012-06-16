@@ -43,6 +43,11 @@ Executable bbcode_test
   MainIs:	bbcode_test.ml
   BuildDepends:	kmb
 
+Executable bbcode2html
+  Path:         bbcode
+  MainIs:       bbcode2html.ml
+  BuildDepends: kmb, tyxml
+
 Executable abnf2peg
   Path:		abnf
   MainIs:	abnf2peg.ml

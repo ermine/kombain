@@ -1,95 +1,429 @@
-# bBCode PEG based on https://github.com/AlainODea/mod_experimental
+# Drupal's bBCode PEG
 
 %{
 open Kmb_lib
+open Kmb_input
+
+type img = {
+  src : string;
+  alt : string;
+  dim : (int * int) option;
+  align  : string;
+}
+
+type  token =
+  | Strong of inline list
+  | Em of inline list
+  | Underline of inline list
+  | Strike of inline list
+  | Subscript of inline list
+  | Superscript of inline list
+  | Color of string * inline list
+  | Size of int * inline list
+  | Font of string * inline list
+  | Url of string * string
+  | Anchor of string * token list
+  | Image of img
+  | Flash of (int * int) * string
+  | Str of string
+  | Entity of string
+  | SimpleTag of string * string
+  | Email of string * string option
+  | Abbr of inline list * string
+  | Break
+  | Sp
+  | Float of string * token list
+
+  | Heading of int * inline list
+  | Quote of string * token list
+  | Code of string
+  | List of string * token list list
+  | Table of (string option * token list list) list * 
+             (string option * token list list) *
+             (string option * token list list) list
+  | Index of string
+  | HorizontalRule
+  | Align of string * token list
+  | Indent of token list
+  | NewLine
+
+and inline = token
 %}
 
-doc <- startList (block / inline)*
+doc                 <- token* eof
 
-inline <- style / url / urlTag / img / .
-block <- quote / code / list / table
+token               <- block / inline
 
-style <- strong / em / underline / strike / color / size
 
-strong <- strongStart (!strongEnd inline)+ strongEnd
-strongStart <- "[b]" / "[B]"
-strongEnd <- "[/b]" / "[/B]"
+style               <- strong / em / underline / strike / subscript / superscript
+                     / color / size / font
 
-em <- emStart (!emEnd inline)+ emEnd
-emStart <- "[i]" / "[I]"
-emEnd <- "[/i]" / "[/I]"
+phrasing            <- abbr / acronym / style / code / br / spTag
+                     / img / flash / subscript / notag / float / anchor 
+                     /entity / str
 
-underline <- underlineStart (!underlineEnd inline)+ underlineEnd
-underlineStart <- "[u]" / "[U]"
-underlineEnd <- "[/u]" / "[/U]"
+inline              <- space / endLine / autourl / autoemail / url
+                     / named_url / email / phrasing
 
-strike <- strikeStart (!strikeEnd inline)+ strikeEnd
-strikeStart <- "[s]" / "[S]"
-strikeEnd <- "[/s]" / "[/S]"
+block               <- heading / quote / code / list / table / index / hr 
+                     / align / indent
 
-url <- urlStart (!urlEnd inline)+ urlEnd
-urlStart <- "[" ("u" / "U") ("r" / "R") ("l" / "L") "]"
-urlEnd <- "[/" ("u" / "U") ("r" / "R") ("l" / "L") "]"
+endLine             <- newLine { fun () -> NewLine }
 
-urlTag <- urlTagStart (!"]" .)* "]" (!urlEnd inline)* urlEnd
-urlTagStart <- "[" ("u" / "U") ("r" / "R") ("l" / "L") "="
+space               <- [ \t]+
+                       { fun s -> Str " " }
 
-color <- colorStart colorValue "]" (!colorEnd inline)* colorEnd
-colorStart <- "[" ("c" / "C") ("o" / "O") ("l" / "L")  ("o" / "O") ("r" / "R") "="
-colorEnd <- "[/" ("c" / "C") ("o" / "O") ("l" / "L")  ("o" / "O") ("r" / "R") "]"
-colorValue <- "#"? (!"]" .)+
+entity              <- "&" (< [a-zA-Z][a-zA-Z0-9]+ > ";"
+                           {fun l -> Entity l.lexeme}
+                           / { fun () -> Str "&" })
 
-size <- sizeStart sizeValue "]" (!sizeEnd inline)* sizeEnd
-sizeStart <- "[" ("s" / "S") ("i" / "I") ("z" / "Z")  ("e" / "E") "="
-sizeEnd <- "[/" ("s" / "S") ("i" / "I") ("z" / "Z")  ("e" / "E") "]"
-sizeValue <- (!"]" .)+
+str                 <- < "["? (![&\[ \t\r\n] .)+ [ \t]* > 
+                       { fun l -> Str l.lexeme }
 
-img <- imgStart (!imgEnd inline)+ imgEnd
-imgStart <- "[" ("i" / "I") ("m" / "M") ("g" / "G") "]"
-imgEnd <- "[/" ("i" / "I") ("m" / "M") ("g" / "G") "]"
+br                 <- "[" b r "]" spnl { fun () -> Break }
+spTag              <- "[" s p "]" spnl { fun () -> Sp }
 
-code <- codeStart (!codeEnd .)+ codeEnd
-codeStart <- "[" ("c" / "C") ("o" / "O") ("d" / "D") ("e" / "E") "]"
-codeEnd <- "[/" ("c" / "C") ("o" / "O") ("d" / "D") ("e" / "E") "]"
+heading             <- "[" h < [1-9] > "]" spnl 
+                        (!headingEnd inline)+ headingEnd newLine*
+                       { fun (l1, (is, l2)) -> 
+                           if l1.lexeme = l2.lexeme then
+                              Heading (int_of_string l1.lexeme, is)
+                           else
+                             failwith "Invalid heading level"
+                         }
+headingEnd          <- "[/" h < [1-9] > "]"
 
-quote <- quoteStart (!quoteEnd inline)+ quoteEnd
-quoteStart <- "[" ("q" / "Q") ("u" / "U") ("o" / "O") ("t" / "T") ("e" / "E") "]"
-quoteEnd <- "[/" ("q" / "Q") ("u" / "U") ("o" / "O") ("t" / "T") ("e" / "E") "]"
+align               <- aligntag / left / center / right / justify
 
-list <- listStart listItems listEnd
-listStart <- "[" ("l" / "L") ("i" / "I") ("s" / "S") ("t" / "T") "]"
-listEnd <- "[/" ("l" / "L") ("i" / "I") ("s" / "S") ("t" / "T") "]"
-listItems <- (listItem / newLine)*
-listItem <- "[*]" (!("[*]" / listEnd) inline)*
+aligntag            <- alignStart (!alignEnd inline)+ alignEnd newLine*
+                       { fun (l, is) -> Align (l.lexeme, is) }
+alignTag            <- a l i g n
+alignStart          <-  "[" alignTag "=" < leftTag / rightTag 
+                                          / centerTag / justifyTag > "]" spnl
+alignEnd            <- "[/" alignTag "]"
 
-table <- tableStart tableRows tableEnd
-tableStart <- "[" ("t" / "T") ("a" / "A") ("b" / "B") ("l" / "L") ("e" / "E") "]"
-tableEnd <- "[/" ("t" / "T") ("a" / "A") ("b" / "B") ("l" / "L") ("e" / "E") "]"
+left                <- leftStart (!leftEnd inline)+ leftEnd newLine*
+                       { fun is -> Align ("left", is) }
+leftTag             <- l e f t
+leftStart           <- "[" leftTag "]" spnl
+leftEnd             <- "[/" leftTag "]"
 
-tableRows <- tableHeader? tableRow*
+center              <- centerStart (!centerEnd inline)+ centerEnd newLine*
+                       { fun is -> Align ("center", is) }
+centerTag           <- c e n t e r
+centerStart         <- "[" centerTag "]" spnl
+centerEnd           <- "[/" centerTag "]"
 
-tableHeader <- tableHeaderStart (!tableHeaderEnd tableRow)* tableHeaderEnd
-tableHeaderStart <- "[" ("t" / "T") ("h" / "H") ("e" / "E") ("a" / "A") ("d" / "D") "]"
-tableHeaderEnd <- "[/" ("t" / "T") ("h" / "H") ("e" / "E") ("a" / "A") ("d" / "D") "]"
+right               <- rightStart (!rightEnd inline)+ rightEnd newLine*
+                       { fun is -> Align ("right", is) }
+rightTag            <- r i g h t
+rightStart          <- "[" rightTag "]" spnl
+rightEnd            <- "[/" rightTag "]"
 
-tableRow <- tableRowStart tableRowCells tableRowEnd
-tableRowStart <- "[" ("t" / "T") ("r" / "R") "]"
-tableRowEnd <- "[/" ("t" / "T") ("r" / "R") "]"
+justify             <- justifyStart (!justifyEnd inline)+ justifyEnd newLine*
+                      { fun is -> Align ("justify", is) }
+justifyTag          <- j u s t i f y
+justifyStart        <- "[" justifyTag "]" spnl
+justifyEnd          <- "[/" justifyTag "]"
 
-tableRowCells <- tableCell*
-tableCell <- tableCellRegular / tableCellHeader
+float               <- floatStart (!floatEnd inline)+ floatEnd newLine*
+                       { fun (v, ts) -> Float (v, ts) }
+floatTag            <- f l o a t
+floatStart          <- "[" floatTag "=" ( l e f t { fun () -> "left"}
+                                        / r i g n t { fun () -> "right" })
+                       "]" spnl
+floatEnd            <- "[/" f l o a t "]"
 
-tableCellRegular <- tableCellRegularStart (!tableCellRegularEnd tableCellContents)* tableCellRegularEnd
-tableCellRegularStart <- "[" ("t" / "T") ("d" / "D") "]"
-tableCellRegularEnd <- "[/" ("t" / "T") ("d" / "D") "]"
+indent              <- indentStart (!indentEnd token)+ indentEnd
+                       { fun ts -> Indent ts }
+indentTag           <- i n d e n t
+indentStart         <- "[" indentTag "]" spnl
+indentEnd           <- "[/" indentTag "]"
 
-tableCellHeader <- tableCellHeaderStart (!tableCellHeaderEnd tableCellContents)* tableCellHeaderEnd
-tableCellHeaderStart <- "[" ("t" / "T") ("h" / "H") "]"
-tableCellHeaderEnd <- "[/" ("t" / "T") ("h" / "H") "]"
+index               <-  "[" i n d e x 
+                          (" " s t y l e "=" ( o l { fun () -> "ol"}
+                                             / u l { fun () -> "ul"})
+                           / {fun () -> "ol" }) "]" newLine*
+                        { fun style -> Index style }
 
-tableCellContents <- quote / list / code / inline / .
+hr                  <-  "[" h r "]" newLine*
+                        { fun () -> HorizontalRule }
 
-newLine <- "\n" / "\r" "\n"?
+strong              <- (strongStart (!strongEnd inline)+ strongEnd
+                     /  strong2Start (!strong2End inline)+ strong2End)
+                       { fun is -> Strong is }
+strongStart         <- "[" b "]" spnl
+strongEnd           <- "[/" b "]"
 
-startList <- &.
+strong2Start        <- "[" s t r o n g "]" spnl
+strong2End         <- "[/" s t r o n g "]"
 
+em                  <- (emStart (!emEnd inline)+ emEnd
+                     /  em2Start (!em2End inline)+ em2End) 
+                       { fun is -> Em is }
+emStart             <- "[" i "]" spnl
+emEnd               <- "[/" i "]"
+
+em2Start            <- "[" e m "]" spnl
+em2End              <- "[/" e m "]"
+
+underline           <- underlineStart (!underlineEnd inline)+ underlineEnd
+                       { fun is -> Underline is }
+underlineStart      <- "[" u "]" spnl
+underlineEnd        <- "[/" u "]"
+
+strike              <- strikeStart (!strikeEnd inline)+ strikeEnd
+                       { fun is -> Strike is }
+strikeStart         <- "[" s "]" spnl
+strikeEnd           <- "[/" s "]"
+
+subscript           <- subscriptStart (!subscriptEnd inline)+ subscriptEnd
+                       { fun is -> Subscript is }
+subscriptStart      <- "[" s u b "]" spnl
+subscriptEnd        <- "[/" s u b "]"
+
+superscript         <- superscriptStart (!superscriptEnd inline)+ superscriptEnd
+                       { fun is -> Superscript is }
+superscriptStart    <- "[" s u p "]" spnl
+superscriptEnd      <- "[/" s u p "]"
+
+color               <- colorStart colorpattern "]" spnl 
+                       (!colorEnd inline)* colorEnd
+                       { fun (v, is) -> Color (v, is) }
+colorStart          <- "[" c o l o r "="
+colorEnd            <- "[/" c o l o r "]"
+colorpattern        <- < "#" hex hex hex hex hex hex
+                     / [a-zA-Z\-]+ >
+                    { fun l -> l.lexeme }
+
+hex                 <- [a-fA-F0-9]
+
+size                <- sizeStart sizepattern "]" spnl (!sizeEnd inline)* sizeEnd
+                       { fun (v, is) -> Size (v, is) }
+sizeStart           <- "[" s i z e "="
+sizeEnd             <- "[/" s i z e "]"
+sizepattern         <- < [1-9][0-9]* > { fun l -> int_of_string l.lexeme }
+
+font                <- fontStart fontpattern "]" spnl (!fontEnd inline)+ fontEnd
+                       { fun (v, is) -> Font (v, is) }
+fontStart           <- "[" f o n t "="
+fontEnd             <- "[/" f o n t "]"
+fontpattern         <- < [a-zA-Z0-9\- ]+ > { fun l -> l.lexeme }
+
+url                 <- urlStart ("]" spnl urlstr2 urlEnd
+                                 { fun url -> Url (url.lexeme, url.lexeme) }
+                                /"=" urlstr2 "]" spnl < (!urlEnd .)+ > urlEnd
+                                 { fun (url, text) ->
+                                     Url (url.lexeme, text.lexeme) }
+                       )
+urlTag              <- u r l
+urlStart            <- "[" u r l
+urlEnd              <- "[/" u r l "]"
+
+named_url           <- "[" tag@(google / wikipedia / youtube) "]" spnl
+                       < (!("[/" tag "]") .)+ > "[/" < tag > "]"
+                       { fun (w, tag) -> SimpleTag (tag.lexeme, w.lexeme) }
+google              <- g o o g l e
+wikipedia           <- w i k i p e d i a
+youtube             <- y o u t u b e
+
+autourl             <- urlstr
+                       { fun url -> Url (url.lexeme, url.lexeme) }
+
+urlstr2            <- urlstr 
+                    / < host ("." host) tail >
+
+urlstr              <- <  "http://" tail
+                        / "https://" tail
+                        / "ftp://" tail
+                        / "www." host "." tail
+                        / "ftp." host "." tail >
+host                <- [a-zA-Z0-9]+ ("-" [a-zA-Z0-9]+)* 
+tail                <-  host ("." host)* (":" [0-9]+)? 
+                         ("/" segment)* ("?" query)? ("#" fragment)?
+
+segment       <-  pchar*
+query         <- ( pchar / "/" / "?" )*
+pchar         <- unreserved / pct_encoded / sub_delims / ":" / "@"
+unreserved    <- alpha / digit / "-" / "." !" " / "_" / "~"
+pct_encoded   <- "%" hexdig hexdig                                            
+sub_delims    <- "!" !ws / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," !ws
+               / ";" !ws / "="
+fragment      <- (pchar / "/" / "?" )*
+
+alpha         <- [a-zA-Z]
+digit         <- [0-9]
+hexdig        <- [a-fA-F0-9]
+
+
+
+
+email                 <- emailStart ("]" spnl emailpattern emailEnd
+                                     { fun e -> Email (e, None) }
+                                    /"=" emailpattern "]" spnl <(!emailEnd .)+> 
+                                     emailEnd
+                                     { fun (e, n) -> Email (e, Some n.lexeme) })
+emailTag            <- e m a i l
+emailStart          <- "[" emailTag
+emailEnd            <- "[/" emailTag "]"
+emailpattern        <- < [a-zA-Z0-9.\-_]+ "@" host ("." host)+ > 
+                       { fun l -> l.lexeme }
+
+
+autoemail           <- < [a-zA-Z0-9.\-_]+ "@" host ("." host)+ >
+                       { fun e -> Email (e.lexeme, None) }
+
+img                 <- imgStart ("]" spnl urlstr2 imgEnd 
+                                 { fun url -> 
+                                      Image { src = url.lexeme;
+                                              align = ""; alt = "";
+                                              dim = None}}
+                                /"=" < [0-9]+ > x < [0-9]+ > "]" spnl 
+                                     urlstr2 imgEnd
+                                 { fun (w, (d, url)) ->
+                                      Image { src = url.lexeme;
+                                         align = ""; alt = "";
+                                         dim = Some (int_of_string w.lexeme,
+                                                     int_of_string w.lexeme)}}
+                                 /"=" simpleValue "]" spnl urlstr2 imgEnd
+                                  { fun (alt, url) ->
+                                      Image { src = url.lexeme; align = ""; 
+                                              alt = alt; dim = None}}
+                                 / " " a l i g n "=" 
+                                     < l e f t / r i g h t / c e n t e r >
+                                    "]" spnl urlstr2 imgEnd
+                                   { fun (a, url) ->
+                                      Image { src = url.lexeme; alt = "";
+                                              align = String.lowercase a.lexeme;
+                                              dim = None}}
+                                )
+imgTag              <- i m g
+imgStart            <- "[" imgTag 
+imgEnd              <- "[/" imgTag "]"
+
+flash               <- flashStart < [a-zA-Z0-9_:;&,~%+!=@/.\-#?]+ > flashEnd
+                       { fun ((w, h),url) -> Flash ((w, h), url.lexeme) }
+flashTag            <- f l a s h
+flashStart          <- "[" f l a s h "=" < [0-9]+ > x < [0-9]+ > "]" spnl
+                       { fun (w, h) -> int_of_string w.lexeme, 
+                                       int_of_string h.lexeme }
+flashEnd            <- "[/" flashTag "]"
+
+anchor              <- anchorStart simpleValue "]" spnl 
+                       (!anchorEnd inline)+ anchorEnd
+                       { fun (a, is) -> Anchor (a, is) }
+anchorTag           <- a n c h o r
+anchorStart         <- "[" anchorTag "="
+anchorEnd           <- "[/" anchorTag "]"
+
+abbr                <- abbrStart simpleValue "]" spnl (!abbrEnd phrasing)+ 
+                       abbrEnd
+                       { fun (value, is) -> Abbr (is, value) }
+abbrTag             <- a b b r
+abbrStart           <- "[" abbrTag "="
+abbrEnd             <- "[/" abbrTag "]"
+
+acronym             <- acronymStart simpleValue "]" spnl (!acronymEnd phrasing)+ 
+                       acronymEnd
+                       { fun (value, is) -> Abbr (is, value) }
+acronymTag          <- a c r o n y m
+acronymStart        <- "[" acronymTag "="
+acronymEnd          <- "[/" acronymTag "]"
+
+code                <- codeStart < (!codeEnd .)+ > codeEnd newLine*
+                       { fun l -> Code l.lexeme }
+codeStart           <- "[" c o d e "]"
+codeEnd             <- "[/" c o d e "]"
+
+notag               <- notagStart < (!notagEnd .)+ > notagEnd
+                       { fun s -> Str s.lexeme }
+notagTag            <- n o t a g
+notagStart          <- "[" notagTag "]" spnl
+notagEnd            <- "[/" notagTag "]"
+
+
+quote               <- quoteStart ("=" simpleValue "]" spnl
+                                  /"]" spnl { fun () -> "" })
+                                  ([ \t\r\n]* !quoteEnd (block / inline))+
+                                  quoteEnd newLine*
+                       { fun (from, is) -> Quote (from, is) }
+quoteTag            <- q u o t e
+quoteStart          <- "[" quoteTag
+quoteEnd            <- "[/" quoteTag "]"
+
+
+list                <- listStart ("=" liststyle "]" spnl
+                                 / "]" spnl { fun () -> "c"})
+                                 listItem+ listEnd newLine*
+                       { fun (t, items) -> List (t, items) }
+listTag             <- l i s t
+listItemTag         <- sp "[*]"
+listStart           <- sp "[" listTag
+listEnd             <- sp "[/" listTag "]"
+listItem            <- listItemTag (!(listItemTag / listEnd) (block / inline))+
+liststyle           <- < c / d / "1" / i / s / a > { fun l -> l.lexeme }
+
+table               <- tableStart tableRowHeader* tableRow tableRow* 
+                       tableEnd newLine*
+                       { fun (header, (row, rows)) -> 
+                            Table (header, row, rows) }
+tableTag            <- t a b l e
+headTag             <- h e a d e r / h e a d / h
+rowTag              <- r o w / r / t r
+colTag              <- c o l / c / t d
+tableStart          <- "[" tableTag "]" spnl
+tableEnd            <- "[/" tableTag "]"
+
+tableRowStart       <- "[" rowTag ("]" spnl { fun () -> None }
+                                  / " " c o l o r "=" colorpattern "]" spnl
+                                  { fun s -> Some s })
+                        newLine*
+tableRowEnd         <- "[/" rowTag "]"
+
+tableRowHeader      <- sp tableRowStart tableHeader+ tableRowEnd newLine*
+tableHeaderStart    <- "[" headTag "]" spnl
+tableHeaderEnd      <- "[/" headTag "]"
+tableHeader         <- sp tableHeaderStart (!tableHeaderEnd token)+
+                       tableHeaderEnd newLine*
+
+tableRow            <- sp tableRowStart tableCell* tableRowEnd newLine*
+
+colStart            <- sp "[" colTag "]" spnl
+colEnd              <- "[/" colTag "]" spnl
+tableCell           <- colStart (!colEnd (block / inline))* colEnd
+
+sp                  <- [ \t]*
+newLine             <- sp ("\n" / "\r" "\n")
+spnl                <- sp (newLine sp)*
+ws                  <- [ \t\r\n]
+
+eof                 <- !.
+simpleValue         <- < (!"]" .)+ >
+                       { fun l -> l.lexeme }
+
+a <- "a"/"A"
+b <- "b"/"B"
+c <- "c"/"C"
+d <- "d"/"D"
+e <- "e"/"E"
+f <- "f"/"F"
+g <- "g"/"G"
+h <- "h"/"H"
+i <- "i"/"I"
+j <- "j"/"J"
+k <- "k"/"K"
+l <- "l"/"L"
+m <- "m"/"M"
+n <- "n"/"N"
+o <- "o"/"O"
+p <- "p"/"P"
+q <- "q"/"Q"
+r <- "r"/"R"
+s <- "s"/"S"
+t <- "t"/"T"
+u <- "u"/"U"
+v <- "v"/"V"
+w <- "w"/"W"
+x <- "x"/"X"
+y <- "y"/"Y"
+z <- "z"/"Z"
