@@ -1,5 +1,5 @@
-open HTML5.M
-open HTML5.P
+open Html5.M
+open Html5.P
 open Markdown_lib
 
 
@@ -17,7 +17,7 @@ let collect_refs ast =
 
 let make_attrs attrs =
   List.map (fun (aname, avalue) ->
-    XML.string_attrib aname (match avalue with
+    Xml.string_attrib aname (match avalue with
       | Some v -> v
       | None -> ""))
     attrs
@@ -70,9 +70,9 @@ let rec link_inline refs els =
               @ acc
       )
       | Code s -> print_endline "code in link"; acc
-      | HtmlComment s -> tot (XML.comment s) :: acc
+      | HtmlComment s -> tot (Xml.comment s) :: acc
       | Html (name, attrs, xs) ->
-        tot (XML.node ~a:(make_attrs attrs) name
+        tot (Xml.node ~a:(make_attrs attrs) name
                (toeltl (link_inline refs xs))) :: acc
       | Link (l, Nothing) -> link_inline refs (Text "[" :: l @ [Text "]"]) @ acc
       | Link (l, _) -> print_endline ("link in link " ^ render l) ; acc
@@ -96,9 +96,9 @@ let rec html_of_inline refs els =
       | Code s -> code [pcdata s] :: acc
       | Emph xs -> em (html_of_inline refs xs) :: acc
       | Strong xs -> strong (html_of_inline refs xs) :: acc
-      | HtmlComment s -> tot (XML.comment s) :: acc
+      | HtmlComment s -> tot (Xml.comment s) :: acc
       | Html (name, attrs, xs) ->
-        tot (XML.node ~a:(make_attrs attrs) name
+        tot (Xml.node ~a:(make_attrs attrs) name
                (toeltl (html_of_inline refs xs))) :: acc
       | Image (l, Src (u,t)) ->
         make_image (l, (u,t)) :: acc
@@ -151,13 +151,13 @@ let rec html_of_block refs els =
         if name = "td" then
           match els with
             | [Plain inlines] ->
-              tot (XML.node ~a:(make_attrs attrs) "td"
+              tot (Xml.node ~a:(make_attrs attrs) "td"
                      (toeltl (html_of_inline refs (strip inlines)))) :: acc
             | _ ->
-              tot (XML.node ~a:(make_attrs attrs) "td"
+              tot (Xml.node ~a:(make_attrs attrs) "td"
                      (toeltl (html_of_block refs els))) :: acc
         else 
-          tot (XML.node ~a:(make_attrs attrs) name
+          tot (Xml.node ~a:(make_attrs attrs) name
                  (toeltl (html_of_block refs els))) :: acc
       )
       | Plain xs

@@ -13,7 +13,6 @@ type lexeme = {
   lexeme : string
 }
 
-
 let end_of_file input =
   input.pos = input.len
 
@@ -52,6 +51,9 @@ let read_file file =
   let lines = aux_read [] in
     close_in f;
     String.concat "\n" lines ^ "\n"
+
+let of_string str =
+  make_input str
 
 let of_file filename =
   let content = read_file filename in
