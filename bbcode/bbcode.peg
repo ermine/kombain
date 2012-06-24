@@ -77,7 +77,8 @@ entity              <- "&" (< [a-zA-Z][a-zA-Z0-9]+ > ";"
                            {fun l -> Entity l.lexeme}
                            / { fun () -> Str "&" })
 
-str                 <- < "["? (![&\[ \t\r\n] .)+ [ \t]* > 
+str                 <- < [\[({<]
+                        / (![&\[ \t\r\n] .)+ [ \t]* > 
                        { fun l -> Str l.lexeme }
 
 br                 <- "[" b r "]" spnl { fun () -> Break }
@@ -211,10 +212,9 @@ fontEnd             <- "[/" f o n t "]"
 fontpattern         <- < [a-zA-Z0-9\- ]+ > { fun l -> l.lexeme }
 
 url                 <- urlStart ("]" spnl urlstr2 urlEnd
-                                 { fun url -> Url (url.lexeme, url.lexeme) }
+                                 { fun url -> Url (url, url) }
                                 /"=" urlstr2 "]" spnl < (!urlEnd .)+ > urlEnd
-                                 { fun (url, text) ->
-                                     Url (url.lexeme, text.lexeme) }
+                                 { fun (url, text) -> Url (url, text.lexeme) }
                        )
 urlTag              <- u r l
 urlStart            <- "[" u r l
@@ -227,35 +227,35 @@ google              <- g o o g l e
 wikipedia           <- w i k i p e d i a
 youtube             <- y o u t u b e
 
-autourl             <- urlstr
+autourl             <- < urlstr tail2 >
                        { fun url -> Url (url.lexeme, url.lexeme) }
 
-urlstr2            <- urlstr 
-                    / < host ("." host) tail >
+urlstr2            <- < urlstr tail / vhost tail >
+                      { fun l -> l.lexeme }
 
-urlstr              <- <  "http://" tail
-                        / "https://" tail
-                        / "ftp://" tail
-                        / "www." host "." tail
-                        / "ftp." host "." tail >
+urlstr              <- ( "http://" vhost
+                       / "https://" vhost
+                       / "ftp://" vhost
+                       / "www." vhost
+                       / "ftp." vhost)
+
+vhost               <- host ("." host)+ (":" [0-9]+)?
 host                <- [a-zA-Z0-9]+ ("-" [a-zA-Z0-9]+)* 
-tail                <-  host ("." host)* (":" [0-9]+)? 
-                         ("/" segment)* ("?" query)? ("#" fragment)?
 
-segment       <-  pchar*
-query         <- ( pchar / "/" / "?" )*
-pchar         <- unreserved / pct_encoded / sub_delims / ":" / "@"
-unreserved    <- alpha / digit / "-" / "." !" " / "_" / "~"
+tail                <- ("/" pchar* )* ("?" query)? ("#" fragment)?
+
+query         <- ( pchar / [/?] )*
+pchar         <- unreserved / pct_encoded / sub_delims / [:@]
+unreserved    <- [a-zA-Z0-9\-._~]
 pct_encoded   <- "%" hexdig hexdig                                            
-sub_delims    <- "!" !ws / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," !ws
-               / ";" !ws / "="
-fragment      <- (pchar / "/" / "?" )*
+sub_delims    <- [!$&'()*+,;=]
+fragment      <- (pchar / [/?] )*
 
-alpha         <- [a-zA-Z]
-digit         <- [0-9]
 hexdig        <- [a-fA-F0-9]
 
-
+tail2         <- ("/" pchar2* )* ("?" (pchar2 / [/?])*)? ("#" (pchar2 / [/?])*)?
+pchar2        <- [a-zA-Z0-9\-_~$&'=@*+] / pct_encoded 
+               / "(" pchar2* ")" / "(" / [.!),;:] !ws 
 
 
 email                 <- emailStart ("]" spnl emailpattern emailEnd
@@ -275,25 +275,25 @@ autoemail           <- < [a-zA-Z0-9.\-_]+ "@" host ("." host)+ >
 
 img                 <- imgStart ("]" spnl urlstr2 imgEnd 
                                  { fun url -> 
-                                      Image { src = url.lexeme;
+                                      Image { src = url;
                                               align = ""; alt = "";
                                               dim = None}}
                                 /"=" < [0-9]+ > x < [0-9]+ > "]" spnl 
                                      urlstr2 imgEnd
                                  { fun (w, (d, url)) ->
-                                      Image { src = url.lexeme;
+                                      Image { src = url;
                                          align = ""; alt = "";
                                          dim = Some (int_of_string w.lexeme,
                                                      int_of_string w.lexeme)}}
                                  /"=" simpleValue "]" spnl urlstr2 imgEnd
                                   { fun (alt, url) ->
-                                      Image { src = url.lexeme; align = ""; 
+                                      Image { src = url; align = ""; 
                                               alt = alt; dim = None}}
                                  / " " a l i g n "=" 
                                      < l e f t / r i g h t / c e n t e r >
                                     "]" spnl urlstr2 imgEnd
                                    { fun (a, url) ->
-                                      Image { src = url.lexeme; alt = "";
+                                      Image { src = url; alt = "";
                                               align = String.lowercase a.lexeme;
                                               dim = None}}
                                 )
