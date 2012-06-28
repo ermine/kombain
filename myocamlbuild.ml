@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: b3fd3ec4cb82f35ede46bce09b2abafc) *)
+(* DO NOT EDIT (digest: 3c7a95f17ebcacf29f7d54f352097a00) *)
 module OASISGettext = struct
 # 21 "/usr/home/ermine/projects/ocaml/src/oasis/src/oasis/OASISGettext.ml"
   
@@ -549,7 +549,7 @@ end
 open Ocamlbuild_plugin;;
 let package_default =
   {
-     MyOCamlbuildBase.lib_ocaml = [("kmb", ["kmb"])];
+     MyOCamlbuildBase.lib_ocaml = [("kmb", ["kmb"]); ("bbcode", ["bbcode"])];
      lib_c = [];
      flags = [];
      includes =

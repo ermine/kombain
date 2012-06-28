@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 3c69469926469d3fdd71571c15ae49a0) *)
+(* DO NOT EDIT (digest: 6ae305091be136974d0fb7ede6269e6d) *)
 This is the INSTALL file for the kombain distribution.
 
 This package uses OASIS to generate its build system. See section OASIS for
@@ -11,7 +11,7 @@ Dependencies
 In order to compile this package, you will need:
 * ocaml
 * findlib
-* tyxml for executable bbcode2html, executable md2html
+* tyxml for library bbcode, executable md2html
 
 Installing
 ==========

@@ -4,7 +4,7 @@
 <kmb/kmb_grammar.ml>: use_camlp4
 
 # OASIS_START
-# DO NOT EDIT (digest: fbc1b356ca6d8d1c99c84f9961fb1f90)
+# DO NOT EDIT (digest: bbb71e536713879b198b8b7dd8c095a7)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -34,11 +34,15 @@
 # Executable textile_test
 "textile/textile_test.byte": use_kmb
 <textile/*.ml{,i}>: use_kmb
+# Library bbcode
+"bbcode/bbcode.cmxs": use_bbcode
 # Executable bbcode_test
 "bbcode/bbcode_test.byte": use_kmb
 # Executable bbcode2html
+"bbcode/bbcode2html.byte": use_bbcode
 "bbcode/bbcode2html.byte": use_kmb
 "bbcode/bbcode2html.byte": pkg_tyxml
+<bbcode/*.ml{,i}>: use_bbcode
 <bbcode/*.ml{,i}>: use_kmb
 <bbcode/*.ml{,i}>: pkg_tyxml
 # Executable abnf2peg

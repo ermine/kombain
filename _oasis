@@ -38,6 +38,13 @@ Executable textile_test
   MainIs:	textile_test.ml
   BuildDepends: kmb
 
+Library bbcode
+  Path:         bbcode
+  FindlibName:  bbcode
+  FindlibParent: kmb
+  Modules:       Bbcode_parser, Bbcode2html_converter
+  BuildDepends:  kmb, tyxml
+
 Executable bbcode_test
   Path:		bbcode
   MainIs:	bbcode_test.ml
@@ -46,7 +53,7 @@ Executable bbcode_test
 Executable bbcode2html
   Path:         bbcode
   MainIs:       bbcode2html.ml
-  BuildDepends: kmb, tyxml
+  BuildDepends: kmb.bbcode
 
 Executable abnf2peg
   Path:		abnf

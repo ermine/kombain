@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4c3c887358a42a979aed13a2ecea2404)
+# DO NOT EDIT (digest: 27a7652f7c8bd5fb4608ed0aeaeebee2)
 version = "0.1"
 description = "PEG based parsers with useful grammars"
 archive(byte) = "kmb.cma"
@@ -7,5 +7,15 @@ archive(byte, plugin) = "kmb.cma"
 archive(native) = "kmb.cmxa"
 archive(native, plugin) = "kmb.cmxs"
 exists_if = "kmb.cma"
+package "bbcode" (
+ version = "0.1"
+ description = "PEG based parsers with useful grammars"
+ requires = "kmb tyxml"
+ archive(byte) = "bbcode.cma"
+ archive(byte, plugin) = "bbcode.cma"
+ archive(native) = "bbcode.cmxa"
+ archive(native, plugin) = "bbcode.cmxs"
+ exists_if = "bbcode.cma"
+)
 # OASIS_STOP
 

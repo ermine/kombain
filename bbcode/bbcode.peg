@@ -230,7 +230,7 @@ youtube             <- y o u t u b e
 autourl             <- < urlstr tail2 >
                        { fun url -> Url (url.lexeme, url.lexeme) }
 
-urlstr2            <- < urlstr tail / vhost tail >
+urlstr2            <- < urlstr tail / vhost tail / tail >
                       { fun l -> l.lexeme }
 
 urlstr              <- ( "http://" vhost
